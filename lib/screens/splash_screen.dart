@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/prefs_helper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -11,11 +12,25 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+
     // Add initialization logic here
-    // For example, navigate to home screen after a delay
     Future.delayed(const Duration(seconds: 3), () {
-      Navigator.pushReplacementNamed(context, '/home');
+      // Check if this is the first time opening the app
+      _checkFirstTimeUser();
     });
+  }
+
+  Future<void> _checkFirstTimeUser() async {
+    // Check if user has completed onboarding
+    bool onboardingCompleted = await PrefsHelper.isOnboardingCompleted();
+
+    if (!onboardingCompleted) {
+      // Navigate to onboarding
+      Navigator.pushReplacementNamed(context, '/onboarding');
+    } else {
+      // Navigate directly to home
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
