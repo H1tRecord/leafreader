@@ -36,7 +36,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Use theme-aware background color
+      backgroundColor: Theme.of(context).colorScheme.background,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -47,23 +48,28 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 150,
               // If you don't have a logo yet, you can comment this out
               // and use a placeholder or just text
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.book, size: 100, color: Colors.green),
+              errorBuilder: (context, error, stackTrace) => Icon(
+                Icons.book,
+                size: 100,
+                color: Theme.of(context).primaryColor,
+              ),
             ),
             const SizedBox(height: 24),
             // App name
-            const Text(
+            Text(
               'LeafReader',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.green,
+                color: Theme.of(context).primaryColor,
               ),
             ),
             const SizedBox(height: 16),
             // Loading indicator
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).primaryColor,
+              ),
             ),
           ],
         ),

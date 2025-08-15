@@ -6,9 +6,11 @@ class ThemeProvider extends ChangeNotifier {
 
   ThemeProvider(this._themeMode);
 
-  String get themeMode => _themeMode;
+  // Get the string representation of theme mode
+  String get themeModeString => _themeMode;
 
-  ThemeMode get themeMode2 {
+  // Convert string to actual ThemeMode enum for MaterialApp
+  ThemeMode get themeMode {
     switch (_themeMode) {
       case 'Dark':
         return ThemeMode.dark;
@@ -19,14 +21,30 @@ class ThemeProvider extends ChangeNotifier {
     }
   }
 
+  // Determine if dark mode is active (either explicitly set or via system)
+  bool isDarkMode(BuildContext context) {
+    if (_themeMode == 'Dark') {
+      return true;
+    } else if (_themeMode == 'Light') {
+      return false;
+    } else {
+      // System mode - check the system brightness
+      return MediaQuery.of(context).platformBrightness == Brightness.dark;
+    }
+  }
+
+  // Factory constructor to initialize from preferences
   static Future<ThemeProvider> create() async {
     final themeMode = await PrefsHelper.getSelectedTheme();
     return ThemeProvider(themeMode);
   }
 
-  void setThemeMode(String mode) async {
-    _themeMode = mode;
-    await PrefsHelper.saveSelectedTheme(mode);
-    notifyListeners();
+  // Change theme and save to preferences
+  Future<void> setThemeMode(String mode) async {
+    if (_themeMode != mode) {
+      _themeMode = mode;
+      await PrefsHelper.saveSelectedTheme(mode);
+      notifyListeners();
+    }
   }
 }

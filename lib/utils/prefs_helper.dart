@@ -17,16 +17,40 @@ class PrefsHelper {
     await prefs.setBool(_keyOnboardingCompleted, true);
   }
 
-  // Save selected theme
+  // Save selected theme with validation
   static Future<void> saveSelectedTheme(String theme) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySelectedTheme, theme);
+    // Validate theme value before saving
+    final validTheme = _validateTheme(theme);
+    await prefs.setString(_keySelectedTheme, validTheme);
   }
 
-  // Get selected theme
+  // Get selected theme with fallback
   static Future<String> getSelectedTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keySelectedTheme) ?? 'System';
+    final theme = prefs.getString(_keySelectedTheme);
+    return _validateTheme(theme);
+  }
+
+  // Helper to validate theme string
+  static String _validateTheme(String? theme) {
+    // Make sure we only save valid theme values
+    if (theme == null) {
+      return 'System';
+    }
+
+    switch (theme) {
+      case 'Light':
+      case 'Dark':
+      case 'Green':
+      case 'Blue':
+      case 'Purple':
+      case 'Orange':
+      case 'Red':
+        return theme;
+      default:
+        return 'System'; // Default fallback
+    }
   }
 
   // Save selected folder

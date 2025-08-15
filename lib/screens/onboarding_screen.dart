@@ -203,9 +203,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: LinearProgressIndicator(
                 value: (_currentStep.index + 1) / OnboardingStep.values.length,
-                backgroundColor: Colors.grey[200],
+                backgroundColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[800]
+                    : Colors.grey[200],
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).primaryColor,
+                  Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -286,7 +288,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     _currentStep == OnboardingStep.themeSelection
                         ? 'Get Started'
                         : 'Continue',
-                    style: const TextStyle(fontSize: 16),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -308,7 +313,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Icon(
               Icons.menu_book,
               size: 100,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 32),
             Text(
@@ -353,9 +358,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Icon(
                   isPermissionGranted ? Icons.check_circle : Icons.folder_open,
                   size: 80,
-                  color: isPermissionGranted
-                      ? Colors.green
-                      : Theme.of(context).primaryColor,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(height: 32),
                 Text(
@@ -413,19 +416,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle, color: Colors.green),
+                        Icon(
+                          Icons.check_circle,
+                          color: Theme.of(context).primaryColor,
+                        ),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Permission Granted',
                           style: TextStyle(
-                            color: Colors.green,
+                            color: Theme.of(context).primaryColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -451,7 +461,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Icon(
               Icons.create_new_folder,
               size: 80,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 32),
             Text(
@@ -472,8 +482,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
+                border: Border.all(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[700]!
+                      : Colors.grey[300]!,
+                ),
                 borderRadius: BorderRadius.circular(8),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[800]
+                    : Colors.grey[50],
               ),
               child: Row(
                 children: [
@@ -508,7 +525,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Icon(
               Icons.palette,
               size: 80,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 24),
@@ -580,12 +597,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isSelected = _selectedTheme == name;
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
+        // Set state locally for UI update
         setState(() {
           _selectedTheme = name;
         });
         // Apply theme change immediately for preview
-        Provider.of<ThemeProvider>(context, listen: false).setThemeMode(name);
+        // Use await to ensure the theme is applied before continuing
+        await Provider.of<ThemeProvider>(
+          context,
+          listen: false,
+        ).setThemeMode(name);
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -593,20 +615,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         decoration: BoxDecoration(
           border: Border.all(
             color: isSelected
-                ? Theme.of(context).primaryColor
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[600]!
                 : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(8),
           color: isSelected
-              ? Theme.of(context).primaryColor.withOpacity(0.1)
+              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+              : Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey[800]
               : null,
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[400]
+                  : Colors.grey[600],
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -619,7 +649,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       fontWeight: isSelected
                           ? FontWeight.bold
                           : FontWeight.normal,
-                      color: isSelected ? Theme.of(context).primaryColor : null,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white70
+                          : Colors.black87,
                     ),
                   ),
                   Text(
@@ -630,7 +664,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             if (isSelected)
-              Icon(Icons.check_circle, color: Theme.of(context).primaryColor),
+              Icon(
+                Icons.check_circle,
+                color: Theme.of(context).colorScheme.primary,
+              ),
           ],
         ),
       ),
@@ -642,12 +679,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isSelected = _selectedTheme == name;
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         setState(() {
           _selectedTheme = name;
         });
         // Apply theme change immediately for preview
-        Provider.of<ThemeProvider>(context, listen: false).setThemeMode(name);
+        // Use await to ensure the theme is applied before continuing
+        await Provider.of<ThemeProvider>(
+          context,
+          listen: false,
+        ).setThemeMode(name);
       },
       child: Container(
         width: 100,
@@ -655,10 +696,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         decoration: BoxDecoration(
           color: color.withOpacity(0.8),
           borderRadius: BorderRadius.circular(8),
-          border: isSelected ? Border.all(color: Colors.white, width: 3) : null,
+          border: isSelected
+              ? Border.all(color: Colors.white, width: 3)
+              : Border.all(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[700]!
+                      : Colors.grey[300]!,
+                  width: 1,
+                ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Theme.of(context).shadowColor.withOpacity(0.2),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -672,7 +720,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Text(
               name,
               style: const TextStyle(
-                color: Colors.white,
+                color: Colors
+                    .white, // Keep white for contrast on colored backgrounds
                 fontWeight: FontWeight.bold,
               ),
             ),

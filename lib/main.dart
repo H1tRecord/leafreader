@@ -31,7 +31,7 @@ class MainApp extends StatelessWidget {
 
     // Set system UI overlay style based on theme
     SystemChrome.setSystemUIOverlayStyle(
-      themeProvider.themeMode2 == ThemeMode.dark
+      themeProvider.themeMode == ThemeMode.dark
           ? SystemUiOverlayStyle.light
           : SystemUiOverlayStyle.dark,
     );
@@ -39,16 +39,38 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       title: 'LeafReader',
       theme: ThemeData(
-        primarySwatch: Colors.green,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.green,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        brightness: Brightness.light,
+        // Light theme text colors
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.black87),
+          bodyMedium: TextStyle(color: Colors.black87),
+          titleMedium: TextStyle(color: Colors.black87),
+          titleLarge: TextStyle(color: Colors.black),
+          headlineSmall: TextStyle(color: Colors.black),
+        ),
       ),
       darkTheme: ThemeData(
-        primarySwatch: Colors.green,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.green,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        brightness: Brightness.dark,
+        // Dark theme text colors
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Colors.white70),
+          titleMedium: TextStyle(color: Colors.white),
+          titleLarge: TextStyle(color: Colors.white),
+          headlineSmall: TextStyle(color: Colors.white),
+        ),
       ),
-      themeMode: themeProvider.themeMode2,
+      themeMode: themeProvider.themeMode,
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),

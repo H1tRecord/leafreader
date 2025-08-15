@@ -12,10 +12,10 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   // Settings
-  bool _darkMode = false;
   bool _notifications = true;
   String _fontSizeOption = 'Medium';
-  String _themeMode = 'System';
+
+  // We'll get theme mode directly from provider instead of maintaining separate state
 
   @override
   void initState() {
@@ -25,12 +25,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Load saved settings
   Future<void> _loadSettings() async {
-    final themeMode = await PrefsHelper.getSelectedTheme();
-
-    setState(() {
-      _themeMode = themeMode;
-      _darkMode = themeMode == 'Dark';
-    });
+    // We'll get theme settings directly from the provider when needed
+    // This is just for other settings that might be added later
   }
 
   @override
@@ -46,40 +42,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           _buildSectionHeader('Display'),
-          _buildSwitchTile(
-            title: 'Dark Mode',
-            subtitle: 'Enable dark theme for the app',
-            value: _darkMode,
-            onChanged: (value) {
-              setState(() {
-                _darkMode = value;
-                _themeMode = value ? 'Dark' : 'Light';
-              });
-              // Apply theme change
-              Provider.of<ThemeProvider>(
-                context,
-                listen: false,
-              ).setThemeMode(_themeMode);
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              final isDarkMode = themeProvider.themeModeString == 'Dark';
+              return _buildSwitchTile(
+                title: 'Dark Mode',
+                subtitle: 'Enable dark theme for the app',
+                value: isDarkMode,
+                onChanged: (value) {
+                  // Apply theme change
+                  final newMode = value ? 'Dark' : 'Light';
+                  themeProvider.setThemeMode(newMode);
+                },
+              );
             },
           ),
 
           // Theme mode selection
-          _buildDropdownTile(
-            title: 'Theme Mode',
-            value: _themeMode,
-            items: const ['System', 'Light', 'Dark'],
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _themeMode = value;
-                  _darkMode = value == 'Dark';
-                });
-                // Apply theme change
-                Provider.of<ThemeProvider>(
-                  context,
-                  listen: false,
-                ).setThemeMode(value);
-              }
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              return _buildDropdownTile(
+                title: 'Theme Mode',
+                value: themeProvider.themeModeString,
+                items: const ['System', 'Light', 'Dark'],
+                onChanged: (value) {
+                  if (value != null) {
+                    // Apply theme change
+                    themeProvider.setThemeMode(value);
+                  }
+                },
+              );
             },
           ),
 
@@ -170,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: Theme.of(context).primaryColor,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -187,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       subtitle: Text(subtitle),
       value: value,
       onChanged: onChanged,
-      activeColor: Theme.of(context).primaryColor,
+      activeColor: Theme.of(context).colorScheme.primary,
     );
   }
 
@@ -202,7 +194,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16)),
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontSize: 16),
+          ),
           DropdownButton<String>(
             value: value,
             items: items
@@ -222,10 +219,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Theme.of(context).primaryColor),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
       title: Text(title),
       subtitle: Text(subtitle),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      trailing: Icon(
+        Icons.arrow_forward_ios,
+        size: 16,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[400]
+            : Colors.grey[600],
+      ),
       onTap: onTap,
     );
   }
