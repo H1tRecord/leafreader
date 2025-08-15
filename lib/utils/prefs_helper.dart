@@ -2,7 +2,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class PrefsHelper {
   static const String _keyOnboardingCompleted = 'onboarding_completed';
-  static const String _keySelectedTheme = 'selected_theme';
+  static const String _keySelectedTheme =
+      'selected_theme'; // System, Light, Dark
+  static const String _keyAccentColor = 'accent_color'; // Green, Blue, etc.
   static const String _keySelectedFolder = 'selected_folder';
 
   // Check if onboarding was completed
@@ -42,15 +44,52 @@ class PrefsHelper {
     switch (theme) {
       case 'Light':
       case 'Dark':
+      case 'System':
+        return theme;
+      // For backwards compatibility - convert old color themes to default theme with accent
       case 'Green':
       case 'Blue':
       case 'Purple':
       case 'Orange':
       case 'Red':
-        return theme;
+        saveAccentColor(theme); // Save the color as accent
+        return 'System'; // Default to System theme
       default:
         return 'System'; // Default fallback
     }
+  }
+
+  // Helper to validate accent color
+  static String _validateAccentColor(String? color) {
+    // Make sure we only save valid accent colors
+    if (color == null) {
+      return 'Green';
+    }
+
+    switch (color) {
+      case 'Green':
+      case 'Blue':
+      case 'Purple':
+      case 'Orange':
+      case 'Red':
+        return color;
+      default:
+        return 'Green'; // Default fallback
+    }
+  }
+
+  // Save accent color
+  static Future<void> saveAccentColor(String color) async {
+    final prefs = await SharedPreferences.getInstance();
+    final validColor = _validateAccentColor(color);
+    await prefs.setString(_keyAccentColor, validColor);
+  }
+
+  // Get accent color with fallback
+  static Future<String> getAccentColor() async {
+    final prefs = await SharedPreferences.getInstance();
+    final color = prefs.getString(_keyAccentColor);
+    return _validateAccentColor(color);
   }
 
   // Save selected folder
@@ -69,5 +108,17 @@ class PrefsHelper {
   static Future<void> resetOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyOnboardingCompleted, false);
+  }
+
+  // Reset all app settings to defaults (for debugging)
+  static Future<void> resetAllSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Reset onboarding status
+    await prefs.setBool(_keyOnboardingCompleted, false);
+    // Reset theme to system default
+    await prefs.setString(_keySelectedTheme, 'System');
+    // Reset accent color to default green
+    await prefs.setString(_keyAccentColor, 'Green');
+    // Keep folder path (don't reset) to avoid data loss
   }
 }

@@ -2,12 +2,32 @@ import 'package:flutter/material.dart';
 import 'prefs_helper.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  String _themeMode;
+  String _themeMode; // System, Light, Dark
+  String _accentColor; // Green, Blue, Purple, Orange, Red
 
-  ThemeProvider(this._themeMode);
+  ThemeProvider(this._themeMode, this._accentColor);
 
   // Get the string representation of theme mode
   String get themeModeString => _themeMode;
+
+  // Get accent color name
+  String get accentColorString => _accentColor;
+
+  // Get the actual accent color
+  Color get accentColor {
+    switch (_accentColor) {
+      case 'Blue':
+        return Colors.blue;
+      case 'Purple':
+        return Colors.purple;
+      case 'Orange':
+        return Colors.orange;
+      case 'Red':
+        return Colors.red;
+      default:
+        return Colors.green; // Default accent color
+    }
+  }
 
   // Convert string to actual ThemeMode enum for MaterialApp
   ThemeMode get themeMode {
@@ -36,14 +56,24 @@ class ThemeProvider extends ChangeNotifier {
   // Factory constructor to initialize from preferences
   static Future<ThemeProvider> create() async {
     final themeMode = await PrefsHelper.getSelectedTheme();
-    return ThemeProvider(themeMode);
+    final accentColor = await PrefsHelper.getAccentColor();
+    return ThemeProvider(themeMode, accentColor);
   }
 
-  // Change theme and save to preferences
+  // Change theme mode and save to preferences
   Future<void> setThemeMode(String mode) async {
     if (_themeMode != mode) {
       _themeMode = mode;
       await PrefsHelper.saveSelectedTheme(mode);
+      notifyListeners();
+    }
+  }
+
+  // Change accent color and save to preferences
+  Future<void> setAccentColor(String color) async {
+    if (_accentColor != color) {
+      _accentColor = color;
+      await PrefsHelper.saveAccentColor(color);
       notifyListeners();
     }
   }

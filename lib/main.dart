@@ -40,7 +40,7 @@ class MainApp extends StatelessWidget {
       title: 'LeafReader',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green,
+          seedColor: themeProvider.accentColor,
           brightness: Brightness.light,
         ),
         useMaterial3: true,
@@ -53,10 +53,11 @@ class MainApp extends StatelessWidget {
           titleLarge: TextStyle(color: Colors.black),
           headlineSmall: TextStyle(color: Colors.black),
         ),
+        primaryColor: themeProvider.accentColor, // Set accent color as primary
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green,
+          seedColor: themeProvider.accentColor,
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
@@ -69,6 +70,7 @@ class MainApp extends StatelessWidget {
           titleLarge: TextStyle(color: Colors.white),
           headlineSmall: TextStyle(color: Colors.white),
         ),
+        primaryColor: themeProvider.accentColor, // Set accent color as primary
       ),
       themeMode: themeProvider.themeMode,
       initialRoute: '/',

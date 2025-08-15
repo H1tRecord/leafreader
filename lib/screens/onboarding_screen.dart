@@ -19,14 +19,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // Current step in the onboarding process
   OnboardingStep _currentStep = OnboardingStep.welcome;
 
-  // Selected theme
-  String _selectedTheme = 'System';
+  // Selected theme mode (System/Light/Dark)
+  String _selectedThemeMode = 'System';
+
+  // Selected accent color
+  String _selectedAccentColor = 'Green';
 
   // Selected folder path
   String? _selectedFolderPath;
 
   // Page controller for the step pages
   final PageController _pageController = PageController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize theme values from the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      setState(() {
+        _selectedThemeMode = themeProvider.themeModeString;
+        _selectedAccentColor = themeProvider.accentColorString;
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -55,6 +71,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Save that onboarding was completed with default values
     await PrefsHelper.setOnboardingCompleted();
     await PrefsHelper.saveSelectedTheme('System');
+    await PrefsHelper.saveAccentColor('Green');
 
     // No folder is selected in skip case, app will ask for it later if needed
 
@@ -66,8 +83,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Save all selected preferences
     await PrefsHelper.setOnboardingCompleted();
 
-    // Theme is already saved by ThemeProvider when it was selected
+    // Ensure both theme mode and accent color are saved
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
+    // Apply and save theme mode
+    await themeProvider.setThemeMode(_selectedThemeMode);
+
+    // Apply and save accent color
+    await themeProvider.setAccentColor(_selectedAccentColor);
+
+    // Save folder path if selected
     if (_selectedFolderPath != null) {
       await PrefsHelper.saveSelectedFolder(_selectedFolderPath!);
     }
@@ -531,7 +556,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'Choose Your Theme',
+              'Personalize Your App',
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
@@ -548,11 +573,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 32),
 
-          // Default theme options
-          Text(
-            'Default Themes',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          // Theme mode options (System, Light, Dark)
+          Text('Theme Mode', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
 
           _buildThemeOption(
@@ -569,11 +591,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
           const SizedBox(height: 24),
 
-          // Additional themes
-          Text('Color Themes', style: Theme.of(context).textTheme.titleMedium),
+          // Accent color options
+          Text('Accent Color', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
 
-          // Theme color cards
+          // Accent color cards
           SizedBox(
             height: 120,
             child: ListView(
@@ -594,13 +616,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // Theme option item
   Widget _buildThemeOption(String name, IconData icon, String description) {
-    final isSelected = _selectedTheme == name;
+    final isSelected = _selectedThemeMode == name;
 
     return InkWell(
       onTap: () async {
         // Set state locally for UI update
         setState(() {
-          _selectedTheme = name;
+          _selectedThemeMode = name;
         });
         // Apply theme change immediately for preview
         // Use await to ensure the theme is applied before continuing
@@ -676,19 +698,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // Theme color card
   Widget _buildThemeCard(String name, Color color) {
-    final isSelected = _selectedTheme == name;
+    final isSelected = _selectedAccentColor == name;
 
     return GestureDetector(
       onTap: () async {
         setState(() {
-          _selectedTheme = name;
+          _selectedAccentColor = name;
         });
-        // Apply theme change immediately for preview
+        // Apply accent color change immediately for preview
         // Use await to ensure the theme is applied before continuing
         await Provider.of<ThemeProvider>(
           context,
           listen: false,
-        ).setThemeMode(name);
+        ).setAccentColor(name);
       },
       child: Container(
         width: 100,

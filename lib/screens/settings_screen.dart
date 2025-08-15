@@ -41,22 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
-          _buildSectionHeader('Display'),
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, _) {
-              final isDarkMode = themeProvider.themeModeString == 'Dark';
-              return _buildSwitchTile(
-                title: 'Dark Mode',
-                subtitle: 'Enable dark theme for the app',
-                value: isDarkMode,
-                onChanged: (value) {
-                  // Apply theme change
-                  final newMode = value ? 'Dark' : 'Light';
-                  themeProvider.setThemeMode(newMode);
-                },
-              );
-            },
-          ),
+          _buildSectionHeader('Appearance'),
 
           // Theme mode selection
           Consumer<ThemeProvider>(
@@ -73,6 +58,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               );
             },
+          ),
+
+          // Accent color selection
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Accent Color',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Consumer<ThemeProvider>(
+                  builder: (context, themeProvider, _) {
+                    return SizedBox(
+                      height: 60,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _buildAccentColorCard(
+                            'Green',
+                            Colors.green,
+                            themeProvider,
+                          ),
+                          _buildAccentColorCard(
+                            'Blue',
+                            Colors.blue,
+                            themeProvider,
+                          ),
+                          _buildAccentColorCard(
+                            'Purple',
+                            Colors.purple,
+                            themeProvider,
+                          ),
+                          _buildAccentColorCard(
+                            'Orange',
+                            Colors.orange,
+                            themeProvider,
+                          ),
+                          _buildAccentColorCard(
+                            'Red',
+                            Colors.red,
+                            themeProvider,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
 
           _buildDropdownTile(
@@ -147,6 +186,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.refresh,
             onTap: () {
               _showResetOnboardingConfirmation();
+            },
+          ),
+          _buildListTile(
+            title: 'Reset All Settings',
+            subtitle: 'Reset all app settings to default values',
+            icon: Icons.restart_alt,
+            onTap: () {
+              _showResetAllSettingsConfirmation();
             },
           ),
         ],
@@ -272,6 +319,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Reset'),
           ),
         ],
+      ),
+    );
+  }
+
+  // Show confirmation dialog before resetting all settings
+  void _showResetAllSettingsConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset All Settings?'),
+        content: const Text(
+          'This will reset all app settings to their default values. '
+          'The next time you launch the app, you will see the onboarding screens again. '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Reset all app settings
+              await PrefsHelper.resetAllSettings();
+
+              // Close the dialog
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+
+              // Show confirmation
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'All settings have been reset to defaults. Restart the app to see changes.',
+                  ),
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            },
+            child: const Text('Reset All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build an accent color selection card
+  Widget _buildAccentColorCard(
+    String name,
+    Color color,
+    ThemeProvider themeProvider,
+  ) {
+    final bool isSelected = themeProvider.accentColorString == name;
+
+    return GestureDetector(
+      onTap: () {
+        // Apply accent color change immediately
+        themeProvider.setAccentColor(name);
+      },
+      child: Container(
+        width: 80,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.8),
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(color: Colors.white, width: 3)
+              : Border.all(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[700]!
+                      : Colors.grey[300]!,
+                  width: 1,
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withOpacity(0.2),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isSelected)
+              const Icon(Icons.check_circle, color: Colors.white, size: 18),
+            Text(
+              name,
+              style: const TextStyle(
+                color: Colors
+                    .white, // Keep white for contrast on colored backgrounds
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
