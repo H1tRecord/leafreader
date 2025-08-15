@@ -3,6 +3,7 @@ import 'dart:io';
 import '../utils/prefs_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
+import './epub_reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -144,6 +145,42 @@ class _HomeScreenState extends State<HomeScreen> {
         return Icons.description;
       default:
         return Icons.insert_drive_file;
+    }
+  }
+  
+  // Open file based on its type
+  void _openFile(String filePath) {
+    final fileName = path.basename(filePath);
+    final extension = path.extension(filePath).toLowerCase();
+    
+    switch (extension) {
+      case '.epub':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EpubReaderScreen(
+              filePath: filePath,
+              fileName: fileName,
+            ),
+          ),
+        );
+        break;
+      case '.pdf':
+        // TODO: Implement PDF viewer
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PDF viewer coming soon! ($fileName)')),
+        );
+        break;
+      case '.txt':
+        // TODO: Implement text file viewer
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Text viewer coming soon! ($fileName)')),
+        );
+        break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unsupported file type: $extension')),
+        );
     }
   }
 
@@ -418,10 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             onTap: () {
-              // TODO: Open the file
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Opening $fileName')));
+              _openFile(file.path);
             },
           ),
         );
@@ -452,10 +486,7 @@ class _HomeScreenState extends State<HomeScreen> {
           elevation: 3,
           child: InkWell(
             onTap: () {
-              // TODO: Open the file
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Opening $fileName')));
+              _openFile(file.path);
             },
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
