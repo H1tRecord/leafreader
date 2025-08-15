@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:logging/logging.dart';
 import '../utils/prefs_helper.dart';
 import '../utils/theme_provider.dart';
 
@@ -14,6 +15,9 @@ enum OnboardingStep {
   themeSelection,
   tutorial,
 }
+
+// Logger for this class
+final _logger = Logger('OnboardingScreen');
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -105,16 +109,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     // No folder is selected in skip case, app will ask for it later if needed
 
-    Navigator.of(context).pushReplacementNamed('/home');
+    // Check if the widget is still mounted before using context
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    }
   }
 
   // Complete onboarding and save preferences
   Future<void> _completeOnboarding() async {
+    // Get theme provider before any async operations
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    // Get a local copy of the path
+    final selectedPath = _selectedFolderPath;
+
     // Save all selected preferences
     await PrefsHelper.setOnboardingCompleted();
-
-    // Ensure both theme mode and accent color are saved
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
     // Apply and save theme mode
     await themeProvider.setThemeMode(_selectedThemeMode);
@@ -123,11 +133,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     await themeProvider.setAccentColor(_selectedAccentColor);
 
     // Save folder path if selected
-    if (_selectedFolderPath != null) {
-      await PrefsHelper.saveSelectedFolder(_selectedFolderPath!);
+    if (selectedPath != null) {
+      await PrefsHelper.saveSelectedFolder(selectedPath);
     }
 
-    Navigator.of(context).pushReplacementNamed('/home');
+    // Check if widget is still mounted before navigating
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    }
   } // Request storage permissions
 
   // Check current storage permission status
@@ -158,7 +171,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       // Try the MANAGE_EXTERNAL_STORAGE permission for Android 11+
       await Permission.manageExternalStorage.request();
     } catch (e) {
-      print("Error requesting manageExternalStorage: $e");
+      _logger.warning("Error requesting manageExternalStorage: $e");
       // Continue anyway as not all devices support this
     }
 
@@ -582,7 +595,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.1),
+                        ).colorScheme.primary.withAlpha(26), // 0.1 * 255 = ~26
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -652,11 +665,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       border: Border.all(
                         color: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.2),
+                        ).colorScheme.primary.withAlpha(51), // 0.2 * 255 = ~51
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Theme.of(context).shadowColor.withOpacity(0.1),
+                          color: Theme.of(
+                            context,
+                          ).shadowColor.withAlpha(26), // 0.1 * 255 = ~26
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -783,7 +798,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.1),
+                      ).colorScheme.primary.withAlpha(26), // 0.1 * 255 = ~26
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(context).colorScheme.primary,
@@ -985,7 +1000,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           borderRadius: BorderRadius.circular(8),
           color: isSelected
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+              ? Theme.of(context).colorScheme.primary.withAlpha(
+                  26,
+                ) // 0.1 * 255 = ~26
               : Theme.of(context).brightness == Brightness.dark
               ? Colors.grey[800]
               : null,
@@ -1108,7 +1125,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withAlpha(26), // 0.1 * 255 = ~26
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Theme.of(context).colorScheme.primary),
             ),
@@ -1157,7 +1176,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).shadowColor.withOpacity(0.1),
+            color: Theme.of(
+              context,
+            ).shadowColor.withAlpha(26), // 0.1 * 255 = ~26
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1168,7 +1189,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withAlpha(26), // 0.1 * 255 = ~26
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -1248,7 +1271,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         width: 100,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.8),
+          color: color.withAlpha(204), // 0.8 * 255 = ~204
           borderRadius: BorderRadius.circular(8),
           border: isSelected
               ? Border.all(color: Colors.white, width: 3)
@@ -1260,7 +1283,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.2),
+              color: Theme.of(
+                context,
+              ).shadowColor.withAlpha(51), // 0.2 * 255 = ~51
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),

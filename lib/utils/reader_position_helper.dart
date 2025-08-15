@@ -1,6 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:logging/logging.dart';
 
 class ReaderPositionHelper {
+  // Create a logger instance for this class
+  static final _logger = Logger('ReaderPositionHelper');
   // Key prefix for storing reading positions
   static const String _keyPrefix = 'epub_position_';
 
@@ -11,7 +14,7 @@ class ReaderPositionHelper {
       final key = _getKeyForFile(filePath);
       return await prefs.setString(key, epubCfi);
     } catch (e) {
-      print('Error saving position: $e');
+      _logger.warning('Error saving position: $e');
       return false;
     }
   }
@@ -23,7 +26,7 @@ class ReaderPositionHelper {
       final key = _getKeyForFile(filePath);
       return prefs.getString(key);
     } catch (e) {
-      print('Error getting position: $e');
+      _logger.warning('Error getting position: $e');
       return null;
     }
   }
@@ -47,7 +50,7 @@ class ReaderPositionHelper {
 
       return true;
     } catch (e) {
-      print('Error clearing positions: $e');
+      _logger.warning('Error clearing positions: $e');
       return false;
     }
   }
@@ -59,7 +62,7 @@ class ReaderPositionHelper {
       final key = _getKeyForFile(filePath);
       return await prefs.remove(key);
     } catch (e) {
-      print('Error removing position: $e');
+      _logger.warning('Error removing position: $e');
       return false;
     }
   }

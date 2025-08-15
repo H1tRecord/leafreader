@@ -147,21 +147,19 @@ class _HomeScreenState extends State<HomeScreen> {
         return Icons.insert_drive_file;
     }
   }
-  
+
   // Open file based on its type
   void _openFile(String filePath) {
     final fileName = path.basename(filePath);
     final extension = path.extension(filePath).toLowerCase();
-    
+
     switch (extension) {
       case '.epub':
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => EpubReaderScreen(
-              filePath: filePath,
-              fileName: fileName,
-            ),
+            builder: (context) =>
+                EpubReaderScreen(filePath: filePath, fileName: fileName),
           ),
         );
         break;
@@ -198,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintStyle: TextStyle(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.6),
+                    ).colorScheme.onSurface.withAlpha(153), // 0.6 * 255 = ~153
                   ),
                 ),
                 style: TextStyle(
@@ -297,7 +295,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(
               Icons.library_books,
               size: 60,
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withAlpha(128), // 0.5 * 255 = ~128
             ),
             const SizedBox(height: 16),
             Text(
@@ -347,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     size: 60,
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.5),
+                    ).colorScheme.primary.withAlpha(128), // 0.5 * 255 = ~128
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -381,7 +381,8 @@ class _HomeScreenState extends State<HomeScreen> {
         // Display current folder path
         Container(
           padding: const EdgeInsets.all(8.0),
-          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest
+              .withAlpha(77), // 0.3 * 255 = ~77
           width: double.infinity,
           child: Row(
             children: [

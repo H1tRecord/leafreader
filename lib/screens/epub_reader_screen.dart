@@ -64,9 +64,10 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use WillPopScope to detect when user navigates back
-    return WillPopScope(
-      onWillPop: () async {
+    // Use PopScope to detect when user navigates back
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
         // Save position when navigating back if reader is loaded
         if (!_isLoading && _errorMessage == null) {
           final cfi = _epubController.generateEpubCfi();
@@ -74,7 +75,6 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
             await ReaderPositionHelper.savePosition(widget.filePath, cfi);
           }
         }
-        return true; // Allow navigation
       },
       child: Scaffold(
         extendBody:
@@ -111,7 +111,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                             value: chapterValue.progress / 100,
                             backgroundColor: Theme.of(
                               context,
-                            ).colorScheme.surfaceVariant,
+                            ).colorScheme.surfaceContainerHighest,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               Theme.of(context).colorScheme.primary,
                             ),
@@ -126,7 +126,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1.0),
             child: Container(
-              color: Theme.of(context).dividerColor.withOpacity(0.2),
+              color: Theme.of(context).dividerColor.withAlpha(51), // ~0.2 alpha
               height: 1.0,
             ),
           ),
@@ -142,16 +142,19 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                           widget.filePath,
                           cfi,
                         );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              saved
-                                  ? 'Reading position saved'
-                                  : 'Failed to save position',
+                        // Guard with mounted check before using context
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                saved
+                                    ? 'Reading position saved'
+                                    : 'Failed to save position',
+                              ),
+                              duration: const Duration(seconds: 1),
                             ),
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
+                          );
+                        }
                       }
                     }
                   : null,
@@ -266,12 +269,12 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
         }
       },
       // Use keyboard detection for navigation (left/right arrow keys)
-      child: RawKeyboardListener(
+      child: KeyboardListener(
         focusNode: FocusNode()..requestFocus(),
-        onKey: (event) {
+        onKeyEvent: (event) {
           if (!_isLoading && _errorMessage == null) {
             // Only handle key up events to avoid duplicate navigation
-            if (event is! RawKeyUpEvent) return;
+            if (event is! KeyUpEvent) return;
 
             final currentValue = _epubController.currentValue;
             if (currentValue == null) return;
@@ -280,14 +283,14 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
             final currentIndex = currentValue.position.index;
 
             // Navigate using arrow keys
-            if (event.logicalKey.keyLabel == 'Arrow Right') {
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
               // Next page - increase index by 1
               _epubController.scrollTo(
                 index: currentIndex + 1,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOut,
               );
-            } else if (event.logicalKey.keyLabel == 'Arrow Left') {
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
               // Previous page - decrease index by 1 if possible
               if (currentIndex > 0) {
                 _epubController.scrollTo(
@@ -471,7 +474,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                                   ? Theme.of(context)
                                         .colorScheme
                                         .primaryContainer
-                                        .withOpacity(0.3)
+                                        .withAlpha(77) // ~0.3 alpha
                                   : null,
                               onTap: () {
                                 // Using the scrollTo method to navigate to the chapter's start index

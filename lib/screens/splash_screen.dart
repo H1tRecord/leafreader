@@ -24,6 +24,9 @@ class _SplashScreenState extends State<SplashScreen> {
     // Check if user has completed onboarding
     bool onboardingCompleted = await PrefsHelper.isOnboardingCompleted();
 
+    // Guard against using BuildContext after widget is disposed
+    if (!mounted) return;
+
     if (!onboardingCompleted) {
       // Navigate to onboarding
       Navigator.pushReplacementNamed(context, '/onboarding');
@@ -36,8 +39,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use theme-aware background color
-      backgroundColor: Theme.of(context).colorScheme.background,
+      // Use theme-aware surface color
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

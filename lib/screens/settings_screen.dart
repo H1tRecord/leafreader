@@ -460,7 +460,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 80,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.8),
+          color: color.withAlpha(204),
           borderRadius: BorderRadius.circular(8),
           border: isSelected
               ? Border.all(color: Colors.white, width: 3)
@@ -472,7 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.2),
+              color: Theme.of(context).shadowColor.withAlpha(51),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
