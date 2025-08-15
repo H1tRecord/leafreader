@@ -420,7 +420,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           elevation: 1,
                           backgroundColor: Theme.of(
                             context,
-                          ).colorScheme.surfaceVariant,
+                          ).colorScheme.surfaceContainerHighest,
                           foregroundColor: Theme.of(
                             context,
                           ).colorScheme.onSurfaceVariant,
@@ -524,7 +524,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         elevation: 1,
                         backgroundColor: Theme.of(
                           context,
-                        ).colorScheme.surfaceVariant,
+                        ).colorScheme.surfaceContainerHighest,
                         foregroundColor: Theme.of(
                           context,
                         ).colorScheme.onSurfaceVariant,
