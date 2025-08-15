@@ -6,14 +6,9 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('LeafReader'),
-      ),
+      appBar: AppBar(title: const Text('LeafReader')),
       body: const Center(
-        child: Text(
-          'Welcome to LeafReader',
-          style: TextStyle(fontSize: 24),
-        ),
+        child: Text('Welcome to LeafReader', style: TextStyle(fontSize: 24)),
       ),
     );
   }

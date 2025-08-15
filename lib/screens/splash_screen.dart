@@ -28,12 +28,12 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             // App logo
             Image.asset(
-              'assets/logo.png', 
+              'assets/logo.png',
               height: 150,
               // If you don't have a logo yet, you can comment this out
               // and use a placeholder or just text
-              errorBuilder: (context, error, stackTrace) => 
-                const Icon(Icons.book, size: 100, color: Colors.green),
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.book, size: 100, color: Colors.green),
             ),
             const SizedBox(height: 24),
             // App name
