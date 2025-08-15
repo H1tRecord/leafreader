@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +7,13 @@ import '../utils/prefs_helper.dart';
 import '../utils/theme_provider.dart';
 
 // Enum to track onboarding steps
-enum OnboardingStep { welcome, permissions, folderSelection, themeSelection }
+enum OnboardingStep {
+  welcome,
+  permissions,
+  folderSelection,
+  themeSelection,
+  tutorial,
+}
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -34,6 +41,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
+
     // Initialize theme values from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -52,11 +60,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // Navigate to the next step
   void _nextStep() {
-    if (_currentStep == OnboardingStep.themeSelection) {
-      _completeOnboarding();
-      return;
-    }
-
     setState(() {
       _currentStep = OnboardingStep.values[_currentStep.index + 1];
     });
@@ -64,6 +67,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  // Navigate to the previous step
+  void _previousStep() {
+    setState(() {
+      _currentStep = OnboardingStep.values[_currentStep.index - 1];
+    });
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  // Get the button text based on the current step
+  String _getButtonText() {
+    switch (_currentStep) {
+      case OnboardingStep.welcome:
+        return 'Get Started';
+      case OnboardingStep.permissions:
+        return 'Continue';
+      case OnboardingStep.folderSelection:
+        return 'Next';
+      case OnboardingStep.themeSelection:
+        return 'Continue';
+      case OnboardingStep.tutorial:
+        return 'Finish';
+    }
   }
 
   // Skip onboarding and go to home
@@ -122,7 +152,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return storageStatus;
   }
 
-  Future<void> _requestStoragePermissions() async {
+  Future<void> _requestStoragePermissions({bool showDialogs = true}) async {
     // For Android 11+ (API level 30+)
     try {
       // Try the MANAGE_EXTERNAL_STORAGE permission for Android 11+
@@ -147,9 +177,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Check if permission was granted
     if (status.isGranted) {
       _nextStep();
-    } else if (status.isPermanentlyDenied) {
+    } else if (showDialogs && status.isPermanentlyDenied) {
       // Show a dialog explaining that the permission is required and
-      // direct the user to app settings
+      // direct the user to app settings - only if showDialogs is true
       if (!mounted) return;
       showDialog(
         context: context,
@@ -174,12 +204,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ],
         ),
       );
-    } else {
-      // Permission denied but not permanently
+    } else if (showDialogs) {
+      // Permission denied but not permanently - show dialog only if showDialogs is true
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Storage permission is required to use this app'),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Permission Required'),
+          content: const Text(
+            'Storage permission is required for LeafReader to access your books.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+            TextButton(
+              onPressed: () => _requestStoragePermissions(),
+              child: const Text('Try Again'),
+            ),
+          ],
         ),
       );
     }
@@ -199,9 +243,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error selecting folder: $e')));
+      // Show dialog instead of snackbar for error
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Folder Selection Error'),
+          content: Text('Error selecting folder: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _selectFolder(); // Try again
+              },
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -211,15 +273,44 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: TextButton(
-                  onPressed: _skipOnboarding,
-                  child: const Text('Skip'),
-                ),
+            // Top navigation row with skip button and page indicator
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Page indicator with dots
+                  Row(
+                    children: List.generate(
+                      OnboardingStep.values.length,
+                      (index) => Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: index == _currentStep.index
+                              ? Theme.of(context).colorScheme.primary
+                              : (Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[300]),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Skip button (don't show on the last tutorial step)
+                  if (_currentStep != OnboardingStep.tutorial)
+                    TextButton(
+                      onPressed: _skipOnboarding,
+                      child: Text(
+                        'Skip',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
@@ -237,88 +328,230 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            // Main content area
+            // Main content area with animated transitions
             Expanded(
               child: PageView(
                 controller: _pageController,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _buildWelcomeStep(),
-                  _buildPermissionsStep(),
-                  _buildFolderSelectionStep(),
-                  _buildThemeSelectionStep(),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    child: _buildWelcomeStep(),
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    child: _buildPermissionsStep(),
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    child: _buildFolderSelectionStep(),
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    child: _buildThemeSelectionStep(),
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    child: _buildTutorialStep(),
+                  ),
                 ],
               ),
             ),
 
-            // Next/Continue button
+            // Navigation buttons (Previous and Next/Continue)
             Padding(
               padding: const EdgeInsets.all(24.0),
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    switch (_currentStep) {
-                      case OnboardingStep.welcome:
-                        _nextStep();
-                        break;
-                      case OnboardingStep.permissions:
-                        // Check if permission is already granted
-                        PermissionStatus status =
-                            await _checkStoragePermission();
-                        if (status.isGranted) {
-                          _nextStep(); // If granted, proceed to next step
-                        } else {
-                          // Show loading indicator while requesting permission
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Requesting storage permission...'),
-                              duration: Duration(seconds: 1),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Previous button (hidden on first step)
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: _currentStep == OnboardingStep.welcome ? 0.0 : 1.0,
+                    child: SizedBox(
+                      width: 120,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _currentStep == OnboardingStep.welcome
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                _previousStep();
+                              },
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 1,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceVariant,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.arrow_back, size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Previous',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          );
-
-                          // Request permissions - this should show the popup
-                          await _requestStoragePermissions();
-
-                          // Check permission status again after request
-                          status = await _checkStoragePermission();
-                          if (status.isGranted) {
-                            _nextStep(); // If granted, proceed to next step
-                          }
-                        }
-                        break;
-                      case OnboardingStep.folderSelection:
-                        if (_selectedFolderPath != null) {
-                          _nextStep();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please select a folder'),
-                            ),
-                          );
-                        }
-                        break;
-                      case OnboardingStep.themeSelection:
-                        _completeOnboarding();
-                        break;
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  child: Text(
-                    _currentStep == OnboardingStep.themeSelection
-                        ? 'Get Started'
-                        : 'Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Theme.of(context).colorScheme.onPrimary,
+
+                  // Next/Continue button
+                  SizedBox(
+                    width: 120,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        // Add visual feedback animation when button is pressed
+                        HapticFeedback.lightImpact();
+
+                        switch (_currentStep) {
+                          case OnboardingStep.welcome:
+                            _nextStep();
+                            break;
+                          case OnboardingStep.permissions:
+                            // Check if permission is already granted
+                            PermissionStatus status =
+                                await _checkStoragePermission();
+                            if (status.isGranted) {
+                              _nextStep(); // If granted, proceed to next step
+                            } else {
+                              // Show loading popup instead of snackbar
+                              _showLoadingDialog(
+                                'Requesting storage permissions...',
+                              );
+
+                              // Request permissions with dialogs enabled (show alerts)
+                              await _requestStoragePermissions(
+                                showDialogs: true,
+                              );
+
+                              // Close the loading dialog if it's still showing
+                              if (mounted && Navigator.of(context).canPop()) {
+                                Navigator.of(context).pop();
+                              }
+
+                              // Check permission status again after request
+                              status = await _checkStoragePermission();
+                              if (status.isGranted) {
+                                _nextStep(); // If granted, proceed to next step
+                              }
+                            }
+                            break;
+                          case OnboardingStep.folderSelection:
+                            if (_selectedFolderPath != null) {
+                              _nextStep();
+                            } else {
+                              // Show dialog instead of snackbar
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('No Folder Selected'),
+                                  content: const Text(
+                                    'Please select a folder to continue.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            break;
+                          case OnboardingStep.themeSelection:
+                            _nextStep(); // Move to tutorial step instead of completing
+                            break;
+                          case OnboardingStep.tutorial:
+                            _completeOnboarding(); // Complete onboarding after tutorial
+                            break;
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 1,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceVariant,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _getButtonText(),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            _currentStep == OnboardingStep.tutorial
+                                ? Icons.check
+                                : Icons.arrow_forward,
+                            size: 18,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -327,7 +560,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // Welcome step
+  // Welcome step with animated elements
   Widget _buildWelcomeStep() {
     return Center(
       child: SingleChildScrollView(
@@ -335,33 +568,140 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.menu_book,
-              size: 100,
-              color: Theme.of(context).colorScheme.primary,
+            // Logo with animation
+            TweenAnimationBuilder<double>(
+              duration: const Duration(seconds: 1),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Opacity(
+                    opacity: value,
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.menu_book,
+                        size: 100,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 32),
-            Text(
-              'Welcome to LeafReader',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
+
+            // Title with staggered animation
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 800),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: Text(
+                      'Welcome to LeafReader',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              },
             ),
+
             const SizedBox(height: 16),
-            Text(
-              'Your digital bookshelf for all your reading needs',
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
+
+            // Subtitle with animation
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 800),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Text(
+                    'Your digital bookshelf for all your reading needs',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
             ),
+
             const SizedBox(height: 24),
-            Text(
-              'Let\'s set up your reading experience in a few simple steps',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
+
+            // Feature container
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 800),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.2),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context).shadowColor.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        _buildFeatureItem(
+                          Icons.library_books,
+                          'Organize your entire book collection',
+                        ),
+                        const Divider(),
+                        _buildFeatureItem(
+                          Icons.colorize,
+                          'Customize reading experience',
+                        ),
+                        const Divider(),
+                        _buildFeatureItem(
+                          Icons.bookmark,
+                          'Track reading progress',
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Helper for welcome screen feature items
+  Widget _buildFeatureItem(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ],
       ),
     );
   }
@@ -419,8 +759,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       );
 
-                      // Request permissions and explicitly trigger the popup
-                      await _requestStoragePermissions();
+                      // Request permissions without showing dialogs
+                      await _requestStoragePermissions(showDialogs: false);
 
                       // Refresh UI after request
                       setState(() {});
@@ -694,6 +1034,198 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
       ),
     );
+  }
+
+  // Tutorial step to help users get started
+  Widget _buildTutorialStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Icon(
+              Icons.school,
+              size: 80,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              'Getting Started',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              'Here\'s a quick tour of LeafReader\'s key features',
+              style: Theme.of(context).textTheme.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Library view tutorial
+          _buildTutorialItem(
+            title: 'Library',
+            description:
+                'Browse your book collection sorted by title, author, or recently read',
+            icon: Icons.library_books,
+          ),
+
+          // Reading view tutorial
+          _buildTutorialItem(
+            title: 'Reading Experience',
+            description:
+                'Customize fonts, margins, and colors for comfortable reading',
+            icon: Icons.menu_book,
+          ),
+
+          // Bookmarks tutorial
+          _buildTutorialItem(
+            title: 'Bookmarks & Notes',
+            description:
+                'Save your progress and add notes to important passages',
+            icon: Icons.bookmark,
+          ),
+
+          // Settings tutorial
+          _buildTutorialItem(
+            title: 'Settings',
+            description:
+                'Customize the app to your preferences anytime from the settings menu',
+            icon: Icons.settings,
+          ),
+
+          const SizedBox(height: 24),
+
+          // Ready to start message
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Theme.of(context).colorScheme.primary),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.celebration,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'You\'re all set! Click Finish to start using LeafReader.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build tutorial items with consistent style
+  Widget _buildTutorialItem({
+    required String title,
+    required String description,
+    required IconData icon,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[800]
+            : Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey[700]!
+              : Colors.grey[300]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: Theme.of(context).colorScheme.primary,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show a loading dialog with custom message
+  void _showLoadingDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 20),
+              Text(message),
+            ],
+          ),
+        );
+      },
+    );
+
+    // Automatically dismiss the dialog after 1.5 seconds
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   // Theme color card

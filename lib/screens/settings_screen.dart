@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../utils/prefs_helper.dart';
 import '../utils/theme_provider.dart';
 
@@ -196,6 +197,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _showResetAllSettingsConfirmation();
             },
           ),
+          _buildListTile(
+            title: 'Reset Permissions',
+            subtitle: 'Reset app permissions and request them again',
+            icon: Icons.security,
+            onTap: () {
+              _showResetPermissionsConfirmation();
+            },
+          ),
         ],
       ),
     );
@@ -306,13 +315,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (!context.mounted) return;
               Navigator.of(context).pop();
 
-              // Show confirmation
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Onboarding reset successful. Restart the app to see onboarding.',
+              // Show confirmation dialog instead of snackbar
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Onboarding Reset'),
+                  content: const Text(
+                    'Onboarding has been reset successfully. Restart the app to see the onboarding screens.',
                   ),
-                  duration: Duration(seconds: 4),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('OK'),
+                    ),
+                  ],
                 ),
               );
             },
@@ -350,17 +366,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (!context.mounted) return;
               Navigator.of(context).pop();
 
-              // Show confirmation
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
+              // Show confirmation dialog instead of snackbar
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Settings Reset Complete'),
+                  content: const Text(
                     'All settings have been reset to defaults. Restart the app to see changes.',
                   ),
-                  duration: Duration(seconds: 4),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('OK'),
+                    ),
+                  ],
                 ),
               );
             },
             child: const Text('Reset All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show confirmation dialog before resetting permissions
+  void _showResetPermissionsConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Permissions?'),
+        content: const Text(
+          'This will reset all app permissions. You\'ll need to grant permissions again '
+          'the next time they\'re required. This is useful if you\'re experiencing permission issues.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Open app settings to let user manually reset permissions
+              await openAppSettings();
+
+              // Close the dialog
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+
+              // Show confirmation dialog with instructions
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Reset Permissions'),
+                  content: const Text(
+                    'The app settings page has been opened. To reset permissions:\n\n'
+                    '1. Find LeafReader in the list\n'
+                    '2. Tap on Permissions\n'
+                    '3. Disable and re-enable storage permissions',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            child: const Text('Open Settings'),
           ),
         ],
       ),
