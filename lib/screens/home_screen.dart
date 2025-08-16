@@ -4,6 +4,7 @@ import '../utils/prefs_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 import './epub_reader_screen.dart';
+import './pdf_reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -164,9 +165,12 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         break;
       case '.pdf':
-        // TODO: Implement PDF viewer
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PDF viewer coming soon! ($fileName)')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                PdfReaderScreen(filePath: filePath, fileName: fileName),
+          ),
         );
         break;
       case '.txt':
