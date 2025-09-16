@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:epub_view/epub_view.dart';
-import '../utils/reader_position_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EpubReaderScreen extends StatefulWidget {
   final String filePath;
@@ -23,6 +22,10 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // EPUB version information
+  String _epubVersion = 'Unknown';
+  Map<String, String> _epubMetadata = {};
+
   @override
   void initState() {
     super.initState();
@@ -31,10 +34,10 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
 
   Future<void> _loadEpub() async {
     try {
-      // Try to get saved position
-      final savedPosition = await ReaderPositionHelper.getPosition(
-        widget.filePath,
-      );
+      // Try to get saved position from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final key = _getKeyForFile(widget.filePath);
+      final savedPosition = prefs.getString(key);
 
       _epubController = EpubController(
         document: EpubDocument.openFile(File(widget.filePath)),
@@ -51,6 +54,12 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
         _errorMessage = 'Error loading EPUB file: $e';
       });
     }
+  }
+
+  // Generate a unique key for the file path
+  static String _getKeyForFile(String filePath) {
+    // Use hash to create a consistent and unique key for the file path
+    return 'epub_position_${filePath.hashCode}';
   }
 
   @override
@@ -72,57 +81,44 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
         if (!_isLoading && _errorMessage == null) {
           final cfi = _epubController.generateEpubCfi();
           if (cfi != null) {
-            await ReaderPositionHelper.savePosition(widget.filePath, cfi);
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final key = _getKeyForFile(widget.filePath);
+              await prefs.setString(key, cfi);
+            } catch (e) {
+              // Ignore errors when closing
+            }
           }
         }
       },
       child: Scaffold(
-        extendBody:
-            true, // Allow content to go behind the bottom navigation bar
         appBar: AppBar(
-          title: !_isLoading && _errorMessage == null
-              ? EpubViewActualChapter(
-                  controller: _epubController,
-                  builder: (chapterValue) {
-                    // If there's a chapter title, display it; otherwise, fall back to the filename
-                    final chapterTitle = chapterValue?.chapter?.Title?.trim();
-                    final displayTitle =
-                        chapterTitle != null && chapterTitle.isNotEmpty
-                        ? chapterTitle
-                        : widget.fileName;
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          displayTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (chapterValue != null) ...[
-                          const SizedBox(height: 2),
-                          // Reading progress indicator
-                          LinearProgressIndicator(
-                            value: chapterValue.progress / 100,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(context).colorScheme.primary,
-                            ),
-                            minHeight: 3,
-                          ),
-                        ],
-                      ],
-                    );
-                  },
-                )
-              : Text(widget.fileName),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.fileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (!_isLoading &&
+                  _errorMessage == null &&
+                  _epubController.currentValue != null)
+                Text(
+                  _buildChapterInfo(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1.0),
             child: Container(
@@ -131,35 +127,20 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
             ),
           ),
           actions: [
-            // Save reading position button
-            IconButton(
-              icon: const Icon(Icons.bookmark_add),
-              onPressed: !_isLoading && _errorMessage == null
-                  ? () async {
-                      final cfi = _epubController.generateEpubCfi();
-                      if (cfi != null) {
-                        final saved = await ReaderPositionHelper.savePosition(
-                          widget.filePath,
-                          cfi,
-                        );
-                        // Guard with mounted check before using context
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                saved
-                                    ? 'Reading position saved'
-                                    : 'Failed to save position',
-                              ),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        }
-                      }
-                    }
-                  : null,
-              tooltip: 'Save Position',
-            ),
+            // Previous chapter button
+            if (!_isLoading && _errorMessage == null)
+              IconButton(
+                icon: const Icon(Icons.skip_previous),
+                onPressed: () => _navigateToPreviousChapter(),
+                tooltip: 'Previous Chapter',
+              ),
+            // Next chapter button
+            if (!_isLoading && _errorMessage == null)
+              IconButton(
+                icon: const Icon(Icons.skip_next),
+                onPressed: () => _navigateToNextChapter(),
+                tooltip: 'Next Chapter',
+              ),
             // Chapter navigation button
             IconButton(
               icon: const Icon(Icons.list),
@@ -170,28 +151,20 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                   : null,
               tooltip: 'Chapters',
             ),
-            // Settings button (for future implementation)
+            // Settings and info button
             IconButton(
-              icon: const Icon(Icons.settings),
+              icon: const Icon(Icons.info_outline),
               onPressed: !_isLoading && _errorMessage == null
                   ? () {
-                      // TODO: Implement reader settings
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Reader settings coming soon!'),
-                        ),
-                      );
+                      _showBookInfoDialog();
                     }
                   : null,
-              tooltip: 'Settings',
+              tooltip: 'Book Info',
             ),
           ],
         ),
         body: _buildBody(),
-        // Bottom navigation bar for quick chapter navigation
-        bottomNavigationBar: !_isLoading && _errorMessage == null
-            ? _buildBottomNavigationBar()
-            : null,
+        // Bottom navigation bar has been removed
       ),
     );
   }
@@ -238,71 +211,11 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
       );
     }
 
-    // Create a gesture detector for swipe navigation
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        if (!_isLoading && _errorMessage == null) {
-          final currentValue = _epubController.currentValue;
-          if (currentValue == null) return;
-
-          // Get current position
-          final currentIndex = currentValue.position.index;
-
-          // Swipe from right to left (next page)
-          if (details.primaryVelocity! < 0) {
-            _epubController.scrollTo(
-              index: currentIndex + 1,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-          // Swipe from left to right (previous page)
-          else if (details.primaryVelocity! > 0) {
-            if (currentIndex > 0) {
-              _epubController.scrollTo(
-                index: currentIndex - 1,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              );
-            }
-          }
-        }
-      },
-      // Use keyboard detection for navigation (left/right arrow keys)
-      child: KeyboardListener(
-        focusNode: FocusNode()..requestFocus(),
-        onKeyEvent: (event) {
-          if (!_isLoading && _errorMessage == null) {
-            // Only handle key up events to avoid duplicate navigation
-            if (event is! KeyUpEvent) return;
-
-            final currentValue = _epubController.currentValue;
-            if (currentValue == null) return;
-
-            // Get current position
-            final currentIndex = currentValue.position.index;
-
-            // Navigate using arrow keys
-            if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-              // Next page - increase index by 1
-              _epubController.scrollTo(
-                index: currentIndex + 1,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              );
-            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-              // Previous page - decrease index by 1 if possible
-              if (currentIndex > 0) {
-                _epubController.scrollTo(
-                  index: currentIndex - 1,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                );
-              }
-            }
-          }
-        },
-        child: EpubView(
+    // Wrap EPUB view with a Stack to add progress indicator
+    return Stack(
+      children: [
+        // Main EPUB view
+        EpubView(
           controller: _epubController,
           builders: EpubViewBuilders<DefaultBuilderOptions>(
             options: const DefaultBuilderOptions(
@@ -313,92 +226,361 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
             chapterDividerBuilder: (_) => const Divider(),
           ),
           onChapterChanged: (value) {
-            // Update the app bar title with the current chapter
+            // Update the UI when chapter changes
             setState(() {});
           },
           onDocumentLoaded: (document) {
             // Document successfully loaded
+            _detectEpubVersion(document);
           },
           onDocumentError: (error) {
-            // Handle document loading error
             setState(() {
               _errorMessage = 'Error loading document: $error';
             });
           },
         ),
-      ),
+
+        // Progress indicator overlay at the bottom
+        if (!_isLoading &&
+            _errorMessage == null &&
+            _epubController.currentValue != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildProgressIndicator(),
+          ),
+      ],
     );
   }
 
-  // Build a bottom navigation bar with chapter navigation controls
-  Widget _buildBottomNavigationBar() {
-    // Get current chapter info
+  // Bottom navigation bar has been removed
+
+  // Build current chapter information string
+  String _buildChapterInfo() {
+    final currentValue = _epubController.currentValue;
+    if (currentValue == null) return '';
+
+    final chapters = _epubController.tableOfContents();
+    return '${currentValue.chapterNumber}/${chapters.length} • ${currentValue.progress.round()}%';
+  }
+
+  // Navigate to the previous chapter
+  void _navigateToPreviousChapter() {
+    final currentValue = _epubController.currentValue;
+    if (currentValue == null) return;
+
+    final chapters = _epubController.tableOfContents();
+    if (chapters.isEmpty) return;
+
+    // Check if we're not at the first chapter
+    if (currentValue.chapterNumber > 1) {
+      // Navigate to previous chapter
+      final previousChapter = chapters[currentValue.chapterNumber - 2];
+      _epubController.scrollTo(
+        index: previousChapter.startIndex,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      // Already at first chapter, show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are already at the first chapter'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  // Navigate to the next chapter
+  void _navigateToNextChapter() {
+    final currentValue = _epubController.currentValue;
+    if (currentValue == null) return;
+
+    final chapters = _epubController.tableOfContents();
+    if (chapters.isEmpty) return;
+
+    // Check if we're not at the last chapter
+    if (currentValue.chapterNumber < chapters.length) {
+      // Navigate to next chapter
+      final nextChapter = chapters[currentValue.chapterNumber];
+      _epubController.scrollTo(
+        index: nextChapter.startIndex,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      // Already at last chapter, show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are already at the last chapter'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  // Detect EPUB version and extract metadata from the loaded document
+  void _detectEpubVersion(EpubBook document) {
+    try {
+      // Extract EPUB version information
+      final package = document.Schema?.Package;
+      if (package != null) {
+        // Get EPUB version - Should be "2.0" or "3.0" typically
+        final version = package.Version?.toString() ?? 'Unknown';
+        setState(() {
+          _epubVersion = version;
+
+          // Extract core metadata
+          _epubMetadata = {
+            'Title': document.Title ?? 'Unknown',
+            'Author': document.Author ?? 'Unknown',
+            'Version': version,
+          };
+
+          // Extract language if available
+          final metadata = package.Metadata;
+          if (metadata?.Languages?.isNotEmpty == true) {
+            _epubMetadata['Language'] = metadata!.Languages!.first;
+          }
+
+          // Try to find a publisher in contributors
+          String? publisher;
+          metadata?.Contributors?.forEach((contributor) {
+            if (contributor.Role?.toLowerCase() == 'publisher') {
+              publisher = contributor.Contributor;
+            }
+          });
+          if (publisher != null) {
+            _epubMetadata['Publisher'] = publisher!;
+          }
+
+          // Adjust CSS and settings based on version
+          _applyVersionSpecificSettings(version);
+        });
+      }
+    } catch (e) {
+      print('Error detecting EPUB version: $e');
+    }
+  }
+
+  // Apply settings optimized for the detected EPUB version
+  void _applyVersionSpecificSettings(String version) {
+    // Currently a placeholder for version-specific optimizations
+    // Will be enhanced in subsequent implementations
+    print('Detected EPUB version: $version');
+  }
+
+  // Build a subtle progress indicator for the bottom of the screen
+  Widget _buildProgressIndicator() {
     final currentValue = _epubController.currentValue;
     if (currentValue == null) return const SizedBox.shrink();
 
     final chapters = _epubController.tableOfContents();
-    if (chapters.isEmpty) return const SizedBox.shrink();
 
-    // Calculate current chapter index
-    final int currentChapterIndex = currentValue.chapterNumber - 1;
+    // Calculate overall book progress (combination of chapter position and chapter progress)
+    final double overallProgress = chapters.isEmpty
+        ? currentValue.progress /
+              100 // If no chapters, just use current progress
+        : (currentValue.chapterNumber - 1 + (currentValue.progress / 100)) /
+              chapters.length;
 
     return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, -1),
+      height: 24,
+      color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: Row(
+        children: [
+          // Progress bar
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Overall progress indicator
+                LinearProgressIndicator(
+                  value: overallProgress,
+                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                  minHeight: 3,
+                ),
+                const SizedBox(height: 4),
+                // Chapter and page info
+                Text(
+                  'Chapter ${currentValue.chapterNumber}/${chapters.length} • ${currentValue.progress.round()}% complete',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Tap to hide/show (we'll leave this functionality for future implementation)
+          IconButton(
+            iconSize: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.keyboard_arrow_down),
+            onPressed: () {
+              // This could toggle the visibility of the progress bar in the future
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Progress bar hiding coming soon!'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Previous chapter button
-            IconButton(
-              icon: const Icon(Icons.skip_previous),
-              onPressed: currentChapterIndex > 0
-                  ? () {
-                      _epubController.scrollTo(
-                        index: chapters[currentChapterIndex - 1].startIndex,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    }
-                  : null,
-              tooltip: 'Previous Chapter',
-            ),
-            // Show chapter info
-            TextButton(
-              onPressed: () => _showChaptersDialog(),
-              child: Text(
-                'Chapter ${currentValue.chapterNumber} of ${chapters.length}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+    );
+  }
+
+  // Show book information and metadata dialog
+  void _showBookInfoDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Book Information',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Close',
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+
+                const Divider(),
+
+                // Display EPUB version with visual indicator
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _epubVersion.contains('3')
+                              ? Colors.green.withOpacity(0.2)
+                              : _epubVersion.contains('2')
+                              ? Colors.blue.withOpacity(0.2)
+                              : Colors.grey.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          'EPUB ${_epubVersion}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _epubVersion.contains('3')
+                                ? Colors.green.shade700
+                                : _epubVersion.contains('2')
+                                ? Colors.blue.shade700
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Display metadata
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: _epubMetadata.entries
+                        .map(
+                          (entry) => ListTile(
+                            title: Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: Text(
+                              entry.value,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            dense: true,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+
+                // Version-specific optimizations info
+                if (_epubVersion.contains('2') || _epubVersion.contains('3'))
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceVariant.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _epubVersion.contains('3')
+                                ? 'EPUB 3 Optimizations Applied'
+                                : 'EPUB 2 Compatibility Mode',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _epubVersion.contains('3')
+                                ? 'Enhanced media support, accessibility features, and CSS3 styling applied.'
+                                : 'Basic formatting and legacy compatibility mode enabled for older EPUB format.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            // Next chapter button
-            IconButton(
-              icon: const Icon(Icons.skip_next),
-              onPressed: currentChapterIndex < chapters.length - 1
-                  ? () {
-                      _epubController.scrollTo(
-                        index: chapters[currentChapterIndex + 1].startIndex,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    }
-                  : null,
-              tooltip: 'Next Chapter',
-            ),
-          ],
-        ),
+          ),
+        );
+      },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
     );
   }
@@ -413,25 +595,47 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
       builder: (context) {
         return SafeArea(
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Chapters',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Close',
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Table of Contents',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Close',
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 4),
+                // Show book info summary
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Book: ${widget.fileName}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Show current reading status
+                if (currentValue != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Current position: Chapter ${currentValue.chapterNumber} of ${chapters.length} • ${currentValue.progress.round()}% complete',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 const Divider(),
                 chapters.isEmpty
@@ -450,6 +654,10 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                                 currentValue?.chapterNumber == index + 1;
 
                             return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
                               title: Text(
                                 chapter.title ?? 'Chapter ${index + 1}',
                                 maxLines: 2,
@@ -460,22 +668,40 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                                       : FontWeight.normal,
                                 ),
                               ),
-                              leading: isCurrentChapter
+                              subtitle: isCurrentChapter && currentValue != null
+                                  ? Text(
+                                      'Current position: ${currentValue.progress.round()}% of chapter',
+                                    )
+                                  : null,
+                              leading: CircleAvatar(
+                                backgroundColor: isCurrentChapter
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceVariant,
+                                foregroundColor: isCurrentChapter
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                child: Text('${index + 1}'),
+                              ),
+                              trailing: isCurrentChapter
                                   ? Icon(
                                       Icons.bookmark,
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.primary,
                                     )
-                                  : const SizedBox(
-                                      width: 24,
-                                    ), // Same width as icon for alignment
-                              tileColor: isCurrentChapter
-                                  ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                        .withAlpha(77) // ~0.3 alpha
                                   : null,
+                              tileColor: isCurrentChapter
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer.withAlpha(50)
+                                  : null,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               onTap: () {
                                 // Using the scrollTo method to navigate to the chapter's start index
                                 _epubController.scrollTo(
@@ -489,6 +715,50 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                           },
                         ),
                       ),
+                const SizedBox(height: 8),
+                // Quick navigation buttons at the bottom
+                if (currentValue != null && chapters.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.skip_previous),
+                          label: const Text('Previous'),
+                          onPressed: currentValue.chapterNumber > 1
+                              ? () {
+                                  final prevChapter =
+                                      chapters[currentValue.chapterNumber - 2];
+                                  _epubController.scrollTo(
+                                    index: prevChapter.startIndex,
+                                    alignment: 0.0,
+                                    duration: const Duration(milliseconds: 300),
+                                  );
+                                  Navigator.pop(context);
+                                }
+                              : null,
+                        ),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.skip_next),
+                          label: const Text('Next'),
+                          onPressed:
+                              currentValue.chapterNumber < chapters.length
+                              ? () {
+                                  final nextChapter =
+                                      chapters[currentValue.chapterNumber];
+                                  _epubController.scrollTo(
+                                    index: nextChapter.startIndex,
+                                    alignment: 0.0,
+                                    duration: const Duration(milliseconds: 300),
+                                  );
+                                  Navigator.pop(context);
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),

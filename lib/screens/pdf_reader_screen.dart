@@ -29,7 +29,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
   // Search related variables
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
 
   // Debounce for search to avoid too many searches while typing
