@@ -30,6 +30,18 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   void initState() {
     super.initState();
     _loadEpub();
+
+    // Add a message to indicate we only support EPUB3
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Note: This reader only supports EPUB3 files.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      });
+    }
   }
 
   Future<void> _loadEpub() async {
@@ -173,7 +185,9 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Failed to load EPUB file',
+                _errorMessage!.contains('EPUB3')
+                    ? 'Unsupported EPUB Version'
+                    : 'Failed to load EPUB file',
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
@@ -240,6 +254,17 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
       if (package != null) {
         // Get EPUB version - Should be "2.0" or "3.0" typically
         final version = package.Version?.toString() ?? 'Unknown';
+
+        // Check if this is an EPUB3 file - properly parse the version
+        final isEpub3 = _isEpub3Version(version);
+        if (!isEpub3) {
+          setState(() {
+            _errorMessage =
+                'This app only supports EPUB3 files. Detected EPUB version: $version';
+          });
+          return;
+        }
+
         setState(() {
           _epubVersion = version;
 
@@ -276,11 +301,48 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
     }
   }
 
+  // Check if the version string represents an EPUB3 version
+  bool _isEpub3Version(String version) {
+    // EPUB3 versions can be "3.0", "3", "3.0.1", etc.
+    try {
+      // Try to parse the first digit or segment of the version
+      if (version == 'Unknown') return false;
+
+      // First check the full version string - check if it contains "3" anywhere
+      if (version.contains('3')) {
+        return true;
+      }
+
+      // As a last resort, if the package version format is non-standard,
+      // try to extract any number and check if it equals 3
+      final numberRegex = RegExp(r'\d+');
+      final matches = numberRegex.allMatches(version);
+      for (final match in matches) {
+        if (match.group(0) == '3') {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      print('Error parsing EPUB version: $e');
+      return false;
+    }
+  }
+
   // Apply settings optimized for the detected EPUB version
   void _applyVersionSpecificSettings(String version) {
     // Currently a placeholder for version-specific optimizations
     // Will be enhanced in subsequent implementations
     print('Detected EPUB version: $version');
+
+    // Make sure we're only dealing with EPUB3
+    if (!_isEpub3Version(version)) {
+      setState(() {
+        _errorMessage =
+            'This app only supports EPUB3 files. Detected EPUB version: $version';
+      });
+    }
   }
 
   // Show book information and metadata dialog
@@ -338,7 +400,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
-                          'EPUB ${_epubVersion}',
+                          'EPUB $_epubVersion',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: _epubVersion.contains('3')
@@ -379,7 +441,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                 ),
 
                 // Version-specific optimizations info
-                if (_epubVersion.contains('2') || _epubVersion.contains('3'))
+                if (_epubVersion.contains('3'))
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Container(
@@ -387,7 +449,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
-                        ).colorScheme.surfaceVariant.withOpacity(0.5),
+                        ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -518,7 +580,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                                     ? Theme.of(context).colorScheme.primary
                                     : Theme.of(
                                         context,
-                                      ).colorScheme.surfaceVariant,
+                                      ).colorScheme.surfaceContainerHighest,
                                 foregroundColor: isCurrentChapter
                                     ? Theme.of(context).colorScheme.onPrimary
                                     : Theme.of(
