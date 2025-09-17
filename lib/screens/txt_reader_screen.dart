@@ -349,7 +349,12 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
     if (!_isSearching || _searchResults.isEmpty) {
       return TextSpan(
         text: _content,
-        style: TextStyle(fontSize: _fontSize, fontFamily: fontFamily.name),
+        style: TextStyle(
+          fontSize: _fontSize,
+          fontFamily: fontFamily.name,
+          // Use the theme's text color to ensure proper contrast in both light and dark modes
+          color: Theme.of(context).textTheme.bodyLarge?.color,
+        ),
       );
     }
 
@@ -369,7 +374,11 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
         spans.add(
           TextSpan(
             text: content.substring(lastEnd, start),
-            style: TextStyle(fontSize: _fontSize, fontFamily: fontFamily.name),
+            style: TextStyle(
+              fontSize: _fontSize,
+              fontFamily: fontFamily.name,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
           ),
         );
       }
@@ -381,6 +390,13 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
           style: TextStyle(
             fontSize: _fontSize,
             fontFamily: fontFamily.name,
+            // Use a suitable text color for the highlighted sections
+            color: i == _currentSearchIndex
+                ? Colors
+                      .black // For better contrast with orange highlight
+                : Theme.of(context).brightness == Brightness.light
+                ? Colors.black
+                : Colors.white,
             backgroundColor: i == _currentSearchIndex
                 ? Colors.orange.withAlpha(
                     179,
@@ -401,7 +417,11 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
       spans.add(
         TextSpan(
           text: content.substring(lastEnd),
-          style: TextStyle(fontSize: _fontSize, fontFamily: fontFamily.name),
+          style: TextStyle(
+            fontSize: _fontSize,
+            fontFamily: fontFamily.name,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
         ),
       );
     }
