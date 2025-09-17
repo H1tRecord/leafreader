@@ -127,20 +127,6 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
             ),
           ),
           actions: [
-            // Previous chapter button
-            if (!_isLoading && _errorMessage == null)
-              IconButton(
-                icon: const Icon(Icons.skip_previous),
-                onPressed: () => _navigateToPreviousChapter(),
-                tooltip: 'Previous Chapter',
-              ),
-            // Next chapter button
-            if (!_isLoading && _errorMessage == null)
-              IconButton(
-                icon: const Icon(Icons.skip_next),
-                onPressed: () => _navigateToNextChapter(),
-                tooltip: 'Next Chapter',
-              ),
             // Chapter navigation button
             IconButton(
               icon: const Icon(Icons.list),
@@ -164,7 +150,6 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
           ],
         ),
         body: _buildBody(),
-        // Bottom navigation bar has been removed
       ),
     );
   }
@@ -211,50 +196,32 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
       );
     }
 
-    // Wrap EPUB view with a Stack to add progress indicator
-    return Stack(
-      children: [
-        // Main EPUB view
-        EpubView(
-          controller: _epubController,
-          builders: EpubViewBuilders<DefaultBuilderOptions>(
-            options: const DefaultBuilderOptions(
-              textStyle: TextStyle(height: 1.25, fontSize: 16),
-              paragraphPadding: EdgeInsets.symmetric(horizontal: 16),
-              chapterPadding: EdgeInsets.all(8),
-            ),
-            chapterDividerBuilder: (_) => const Divider(),
-          ),
-          onChapterChanged: (value) {
-            // Update the UI when chapter changes
-            setState(() {});
-          },
-          onDocumentLoaded: (document) {
-            // Document successfully loaded
-            _detectEpubVersion(document);
-          },
-          onDocumentError: (error) {
-            setState(() {
-              _errorMessage = 'Error loading document: $error';
-            });
-          },
+    // EPUB view without progress indicator overlay
+    return EpubView(
+      controller: _epubController,
+      builders: EpubViewBuilders<DefaultBuilderOptions>(
+        options: const DefaultBuilderOptions(
+          textStyle: TextStyle(height: 1.25, fontSize: 16),
+          paragraphPadding: EdgeInsets.symmetric(horizontal: 16),
+          chapterPadding: EdgeInsets.all(8),
         ),
-
-        // Progress indicator overlay at the bottom
-        if (!_isLoading &&
-            _errorMessage == null &&
-            _epubController.currentValue != null)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildProgressIndicator(),
-          ),
-      ],
+        chapterDividerBuilder: (_) => const Divider(),
+      ),
+      onChapterChanged: (value) {
+        // Update the UI when chapter changes
+        setState(() {});
+      },
+      onDocumentLoaded: (document) {
+        // Document successfully loaded
+        _detectEpubVersion(document);
+      },
+      onDocumentError: (error) {
+        setState(() {
+          _errorMessage = 'Error loading document: $error';
+        });
+      },
     );
   }
-
-  // Bottom navigation bar has been removed
 
   // Build current chapter information string
   String _buildChapterInfo() {
@@ -263,64 +230,6 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
 
     final chapters = _epubController.tableOfContents();
     return '${currentValue.chapterNumber}/${chapters.length} • ${currentValue.progress.round()}%';
-  }
-
-  // Navigate to the previous chapter
-  void _navigateToPreviousChapter() {
-    final currentValue = _epubController.currentValue;
-    if (currentValue == null) return;
-
-    final chapters = _epubController.tableOfContents();
-    if (chapters.isEmpty) return;
-
-    // Check if we're not at the first chapter
-    if (currentValue.chapterNumber > 1) {
-      // Navigate to previous chapter
-      final previousChapter = chapters[currentValue.chapterNumber - 2];
-      _epubController.scrollTo(
-        index: previousChapter.startIndex,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    } else {
-      // Already at first chapter, show message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You are already at the first chapter'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    }
-  }
-
-  // Navigate to the next chapter
-  void _navigateToNextChapter() {
-    final currentValue = _epubController.currentValue;
-    if (currentValue == null) return;
-
-    final chapters = _epubController.tableOfContents();
-    if (chapters.isEmpty) return;
-
-    // Check if we're not at the last chapter
-    if (currentValue.chapterNumber < chapters.length) {
-      // Navigate to next chapter
-      final nextChapter = chapters[currentValue.chapterNumber];
-      _epubController.scrollTo(
-        index: nextChapter.startIndex,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    } else {
-      // Already at last chapter, show message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You are already at the last chapter'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    }
   }
 
   // Detect EPUB version and extract metadata from the loaded document
@@ -372,75 +281,6 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
     // Currently a placeholder for version-specific optimizations
     // Will be enhanced in subsequent implementations
     print('Detected EPUB version: $version');
-  }
-
-  // Build a subtle progress indicator for the bottom of the screen
-  Widget _buildProgressIndicator() {
-    final currentValue = _epubController.currentValue;
-    if (currentValue == null) return const SizedBox.shrink();
-
-    final chapters = _epubController.tableOfContents();
-
-    // Calculate overall book progress (combination of chapter position and chapter progress)
-    final double overallProgress = chapters.isEmpty
-        ? currentValue.progress /
-              100 // If no chapters, just use current progress
-        : (currentValue.chapterNumber - 1 + (currentValue.progress / 100)) /
-              chapters.length;
-
-    return Container(
-      height: 24,
-      color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: Row(
-        children: [
-          // Progress bar
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Overall progress indicator
-                LinearProgressIndicator(
-                  value: overallProgress,
-                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.primary,
-                  ),
-                  minHeight: 3,
-                ),
-                const SizedBox(height: 4),
-                // Chapter and page info
-                Text(
-                  'Chapter ${currentValue.chapterNumber}/${chapters.length} • ${currentValue.progress.round()}% complete',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Theme.of(context).textTheme.bodySmall?.color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tap to hide/show (we'll leave this functionality for future implementation)
-          IconButton(
-            iconSize: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            icon: const Icon(Icons.keyboard_arrow_down),
-            onPressed: () {
-              // This could toggle the visibility of the progress bar in the future
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Progress bar hiding coming soon!'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
   }
 
   // Show book information and metadata dialog
