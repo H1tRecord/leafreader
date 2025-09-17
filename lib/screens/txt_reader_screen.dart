@@ -1,6 +1,18 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import '../utils/prefs_helper.dart';
+
+// Define font family enum
+enum FontFamily {
+  default_(''),
+  serif('serif'),
+  sansSerif('sans-serif'),
+  monospace('monospace');
+
+  final String name;
+  const FontFamily(this.name);
+}
 
 class TxtReaderScreen extends StatefulWidget {
   final String filePath;
@@ -21,6 +33,7 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
   String? _errorMessage;
   bool _isLoading = true;
   double _fontSize = 16.0;
+  String _fontFamily = 'Default';
   final ScrollController _scrollController = ScrollController();
 
   // Search related variables
@@ -36,6 +49,7 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
   void initState() {
     super.initState();
     _loadContent();
+    _loadReaderSettings();
   }
 
   @override
@@ -67,6 +81,16 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // Load reader settings from preferences
+  Future<void> _loadReaderSettings() async {
+    final fontSize = await PrefsHelper.getTextFontSize();
+    final fontFamily = await PrefsHelper.getTextFontFamily();
+    setState(() {
+      _fontSize = fontSize;
+      _fontFamily = fontFamily;
+    });
   }
 
   // Handle search text changes with debounce
@@ -241,23 +265,12 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
             });
           },
         ),
-        // Font size controls
+        // Settings button
         IconButton(
-          icon: const Icon(Icons.text_decrease),
-          tooltip: 'Decrease font size',
+          icon: const Icon(Icons.settings),
+          tooltip: 'Reader Settings',
           onPressed: () {
-            setState(() {
-              _fontSize = (_fontSize - 1).clamp(8.0, 32.0);
-            });
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.text_increase),
-          tooltip: 'Increase font size',
-          onPressed: () {
-            setState(() {
-              _fontSize = (_fontSize + 1).clamp(8.0, 32.0);
-            });
+            _showReaderSettingsDialog();
           },
         ),
       ],
@@ -314,11 +327,29 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
       return const TextSpan(text: '');
     }
 
+    // Get the font family based on the selection
+    FontFamily fontFamily;
+    switch (_fontFamily) {
+      case 'Serif':
+        fontFamily = FontFamily.serif;
+        break;
+      case 'Sans-serif':
+        fontFamily = FontFamily.sansSerif;
+        break;
+      case 'Monospace':
+        fontFamily = FontFamily.monospace;
+        break;
+      case 'Default':
+      default:
+        fontFamily = FontFamily.default_;
+        break;
+    }
+
     // If no search results, return the plain text
     if (!_isSearching || _searchResults.isEmpty) {
       return TextSpan(
         text: _content,
-        style: TextStyle(fontSize: _fontSize),
+        style: TextStyle(fontSize: _fontSize, fontFamily: fontFamily.name),
       );
     }
 
@@ -338,7 +369,7 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
         spans.add(
           TextSpan(
             text: content.substring(lastEnd, start),
-            style: TextStyle(fontSize: _fontSize),
+            style: TextStyle(fontSize: _fontSize, fontFamily: fontFamily.name),
           ),
         );
       }
@@ -349,6 +380,7 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
           text: content.substring(start, end),
           style: TextStyle(
             fontSize: _fontSize,
+            fontFamily: fontFamily.name,
             backgroundColor: i == _currentSearchIndex
                 ? Colors.orange.withAlpha(
                     179,
@@ -369,12 +401,142 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
       spans.add(
         TextSpan(
           text: content.substring(lastEnd),
-          style: TextStyle(fontSize: _fontSize),
+          style: TextStyle(fontSize: _fontSize, fontFamily: fontFamily.name),
         ),
       );
     }
 
     return TextSpan(children: spans);
+  }
+
+  // Show reader settings dialog
+  void _showReaderSettingsDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        // Use a StatefulBuilder to manage the state of the dialog internally
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Text Reader Settings',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                            tooltip: 'Close',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+
+                    // Font Size
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Size: ${_fontSize.toStringAsFixed(1)}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Slider(
+                            value: _fontSize,
+                            min: 8.0,
+                            max: 32.0,
+                            divisions: 24,
+                            label: _fontSize.toStringAsFixed(1),
+                            onChanged: (value) {
+                              setModalState(() {
+                                _fontSize = value;
+                              });
+                            },
+                            onChangeEnd: (value) {
+                              setState(() {
+                                _fontSize = value;
+                              });
+                              PrefsHelper.saveTextFontSize(value);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Font Family
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Family',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _fontFamily,
+                            items:
+                                ['Default', 'Serif', 'Sans-serif', 'Monospace']
+                                    .map(
+                                      (family) => DropdownMenuItem(
+                                        value: family,
+                                        child: Text(family),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setModalState(() {
+                                  _fontFamily = value;
+                                });
+                                setState(() {
+                                  _fontFamily = value;
+                                });
+                                PrefsHelper.saveTextFontFamily(value);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+    );
   }
 
   // Build search navigation panel

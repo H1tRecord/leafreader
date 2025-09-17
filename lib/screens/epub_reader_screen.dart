@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:epub_view/epub_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/prefs_helper.dart';
 
 class EpubReaderScreen extends StatefulWidget {
   final String filePath;
@@ -22,6 +23,10 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // Reader settings
+  double _fontSize = 16.0;
+  String _fontFamily = 'Default';
+
   // EPUB version information
   String _epubVersion = 'Unknown';
   Map<String, String> _epubMetadata = {};
@@ -30,6 +35,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   void initState() {
     super.initState();
     _loadEpub();
+    _loadReaderSettings();
 
     // Add a message to indicate we only support EPUB3
     if (mounted) {
@@ -66,6 +72,13 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
         _errorMessage = 'Error loading EPUB file: $e';
       });
     }
+  }
+
+  // Load reader settings from preferences
+  Future<void> _loadReaderSettings() async {
+    _fontSize = await PrefsHelper.getEpubFontSize();
+    _fontFamily = await PrefsHelper.getEpubFontFamily();
+    setState(() {});
   }
 
   // Generate a unique key for the file path
@@ -149,6 +162,16 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                   : null,
               tooltip: 'Chapters',
             ),
+            // Reader settings button
+            IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: !_isLoading && _errorMessage == null
+                  ? () {
+                      _showReaderSettingsDialog();
+                    }
+                  : null,
+              tooltip: 'Reader Settings',
+            ),
             // Settings and info button
             IconButton(
               icon: const Icon(Icons.info_outline),
@@ -214,10 +237,14 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
     return EpubView(
       controller: _epubController,
       builders: EpubViewBuilders<DefaultBuilderOptions>(
-        options: const DefaultBuilderOptions(
-          textStyle: TextStyle(height: 1.25, fontSize: 16),
-          paragraphPadding: EdgeInsets.symmetric(horizontal: 16),
-          chapterPadding: EdgeInsets.all(8),
+        options: DefaultBuilderOptions(
+          textStyle: TextStyle(
+            height: 1.25,
+            fontSize: _fontSize,
+            fontFamily: _fontFamily == 'Default' ? null : _fontFamily,
+          ),
+          paragraphPadding: const EdgeInsets.symmetric(horizontal: 16),
+          chapterPadding: const EdgeInsets.all(8),
         ),
         chapterDividerBuilder: (_) => const Divider(),
       ),
@@ -343,6 +370,135 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
             'This app only supports EPUB3 files. Detected EPUB version: $version';
       });
     }
+  }
+
+  // Show reader settings dialog
+  void _showReaderSettingsDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        // Use a StatefulWidget to manage the state of the dialog internally
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Reader Settings',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                            tooltip: 'Close',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+
+                    // Font Size
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Size: ${_fontSize.toStringAsFixed(1)}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Slider(
+                            value: _fontSize,
+                            min: 10.0,
+                            max: 30.0,
+                            divisions: 20,
+                            label: _fontSize.toStringAsFixed(1),
+                            onChanged: (value) {
+                              setModalState(() {
+                                _fontSize = value;
+                              });
+                            },
+                            onChangeEnd: (value) {
+                              setState(() {
+                                _fontSize = value;
+                              });
+                              PrefsHelper.saveEpubFontSize(value);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Font Family
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Family',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _fontFamily,
+                            items: ['Default', 'Serif', 'Sans-serif']
+                                .map(
+                                  (family) => DropdownMenuItem(
+                                    value: family,
+                                    child: Text(family),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setModalState(() {
+                                  _fontFamily = value;
+                                });
+                                setState(() {
+                                  _fontFamily = value;
+                                });
+                                PrefsHelper.saveEpubFontFamily(value);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+    );
   }
 
   // Show book information and metadata dialog

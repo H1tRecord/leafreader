@@ -14,7 +14,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // Settings
   bool _notifications = true;
-  String _fontSizeOption = 'Medium';
 
   // We'll get theme mode directly from provider instead of maintaining separate state
 
@@ -115,20 +114,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          _buildDropdownTile(
-            title: 'Font Size',
-            value: _fontSizeOption,
-            items: const ['Small', 'Medium', 'Large', 'Extra Large'],
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _fontSizeOption = value;
-                });
-                // TODO: Implement font size change
-              }
-            },
-          ),
-
           _buildSectionHeader('Notifications'),
           _buildSwitchTile(
             title: 'Enable Notifications',
@@ -177,6 +162,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.help_outline,
             onTap: () {
               // TODO: Navigate to help page
+            },
+          ),
+
+          _buildSectionHeader('Reading Settings'),
+          _buildListTile(
+            title: 'EPUB Reader Settings',
+            subtitle: 'Configure font size and style for EPUB files',
+            icon: Icons.book,
+            onTap: () {
+              _showEpubReaderSettings();
+            },
+          ),
+          _buildListTile(
+            title: 'Text Reader Settings',
+            subtitle: 'Configure font size and style for text files',
+            icon: Icons.text_fields,
+            onTap: () {
+              _showTextReaderSettings();
             },
           ),
 
@@ -391,6 +394,259 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Show confirmation dialog before resetting permissions
+  // Show EPUB reader settings dialog
+  void _showEpubReaderSettings() async {
+    double epubFontSize = await PrefsHelper.getEpubFontSize();
+    String epubFontFamily = await PrefsHelper.getEpubFontFamily();
+
+    if (!context.mounted) return;
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'EPUB Reader Settings',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                            tooltip: 'Close',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+
+                    // Font Size
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Size: ${epubFontSize.toStringAsFixed(1)}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Slider(
+                            value: epubFontSize,
+                            min: 10.0,
+                            max: 30.0,
+                            divisions: 20,
+                            label: epubFontSize.toStringAsFixed(1),
+                            onChanged: (value) {
+                              setModalState(() {
+                                epubFontSize = value;
+                              });
+                            },
+                            onChangeEnd: (value) {
+                              PrefsHelper.saveEpubFontSize(value);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Font Family
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Family',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: epubFontFamily,
+                            items: ['Default', 'Serif', 'Sans-serif']
+                                .map(
+                                  (family) => DropdownMenuItem(
+                                    value: family,
+                                    child: Text(family),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setModalState(() {
+                                  epubFontFamily = value;
+                                });
+                                PrefsHelper.saveEpubFontFamily(value);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+    );
+  }
+
+  // Show Text reader settings dialog
+  void _showTextReaderSettings() async {
+    double textFontSize = await PrefsHelper.getTextFontSize();
+    String textFontFamily = await PrefsHelper.getTextFontFamily();
+
+    if (!context.mounted) return;
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Text Reader Settings',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                            tooltip: 'Close',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+
+                    // Font Size
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Size: ${textFontSize.toStringAsFixed(1)}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Slider(
+                            value: textFontSize,
+                            min: 8.0,
+                            max: 32.0,
+                            divisions: 24,
+                            label: textFontSize.toStringAsFixed(1),
+                            onChanged: (value) {
+                              setModalState(() {
+                                textFontSize = value;
+                              });
+                            },
+                            onChangeEnd: (value) {
+                              PrefsHelper.saveTextFontSize(value);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Font Family
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Font Family',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: textFontFamily,
+                            items:
+                                ['Default', 'Serif', 'Sans-serif', 'Monospace']
+                                    .map(
+                                      (family) => DropdownMenuItem(
+                                        value: family,
+                                        child: Text(family),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setModalState(() {
+                                  textFontFamily = value;
+                                });
+                                PrefsHelper.saveTextFontFamily(value);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+    );
+  }
+
   void _showResetPermissionsConfirmation() {
     showDialog(
       context: context,

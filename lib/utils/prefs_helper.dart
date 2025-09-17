@@ -6,6 +6,10 @@ class PrefsHelper {
       'selected_theme'; // System, Light, Dark
   static const String _keyAccentColor = 'accent_color'; // Green, Blue, etc.
   static const String _keySelectedFolder = 'selected_folder';
+  static const String _keyEpubFontSize = 'epub_font_size';
+  static const String _keyEpubFontFamily = 'epub_font_family';
+  static const String _keyTextFontSize = 'text_font_size';
+  static const String _keyTextFontFamily = 'text_font_family';
 
   // Check if onboarding was completed
   static Future<bool> isOnboardingCompleted() async {
@@ -104,10 +108,58 @@ class PrefsHelper {
     return prefs.getString(_keySelectedFolder);
   }
 
+  // Save EPUB font size
+  static Future<void> saveEpubFontSize(double fontSize) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyEpubFontSize, fontSize);
+  }
+
+  // Get EPUB font size
+  static Future<double> getEpubFontSize() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_keyEpubFontSize) ?? 16.0; // Default to 16.0
+  }
+
+  // Save EPUB font family
+  static Future<void> saveEpubFontFamily(String fontFamily) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyEpubFontFamily, fontFamily);
+  }
+
+  // Get EPUB font family
+  static Future<String> getEpubFontFamily() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyEpubFontFamily) ?? 'Default'; // Default
+  }
+
   // Reset onboarding status (for debugging)
   static Future<void> resetOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyOnboardingCompleted, false);
+  }
+
+  // Save text font size
+  static Future<void> saveTextFontSize(double fontSize) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyTextFontSize, fontSize);
+  }
+
+  // Get text font size
+  static Future<double> getTextFontSize() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_keyTextFontSize) ?? 16.0; // Default to 16.0
+  }
+
+  // Save text font family
+  static Future<void> saveTextFontFamily(String fontFamily) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyTextFontFamily, fontFamily);
+  }
+
+  // Get text font family
+  static Future<String> getTextFontFamily() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyTextFontFamily) ?? 'Default'; // Default
   }
 
   // Reset all app settings to defaults (for debugging)
@@ -119,6 +171,11 @@ class PrefsHelper {
     await prefs.setString(_keySelectedTheme, 'System');
     // Reset accent color to default green
     await prefs.setString(_keyAccentColor, 'Green');
+    // Reset font settings
+    await prefs.setDouble(_keyEpubFontSize, 16.0);
+    await prefs.setString(_keyEpubFontFamily, 'Default');
+    await prefs.setDouble(_keyTextFontSize, 16.0);
+    await prefs.setString(_keyTextFontFamily, 'Default');
     // Keep folder path (don't reset) to avoid data loss
   }
 }
