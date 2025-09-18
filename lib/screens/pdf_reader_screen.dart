@@ -16,15 +16,27 @@ class PdfReaderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => PdfReaderService(),
+      create: (_) {
+        final service = PdfReaderService();
+        // Initialize with file path to load saved annotations
+        service.initWithFile(filePath);
+        return service;
+      },
       child: Consumer<PdfReaderService>(
         builder: (context, service, child) {
-          return Scaffold(
-            appBar: buildAppBar(context, service, fileName),
-            body: buildBody(context, service, filePath),
-            bottomNavigationBar: service.showPageNavigation
-                ? buildBottomNavigationBar(context, service)
-                : null,
+          return WillPopScope(
+            // Save annotations when navigating back
+            onWillPop: () async {
+              await service.saveAnnotations();
+              return true;
+            },
+            child: Scaffold(
+              appBar: buildAppBar(context, service, fileName),
+              body: buildBody(context, service, filePath),
+              bottomNavigationBar: service.showPageNavigation
+                  ? buildBottomNavigationBar(context, service)
+                  : null,
+            ),
           );
         },
       ),

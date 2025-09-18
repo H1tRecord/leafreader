@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'annotation_storage_service.dart';
 
 class PdfReaderService with ChangeNotifier {
   final PdfViewerController pdfViewerController = PdfViewerController();
@@ -15,6 +16,9 @@ class PdfReaderService with ChangeNotifier {
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isSearching = false;
   Timer? _debounce;
+  String? _filePath;
+  List<Annotation>? _loadedAnnotations;
+  bool _annotationsModified = false;
 
   String? get errorMessage => _errorMessage;
   bool get showScrollHead => _showScrollHead;
@@ -22,9 +26,18 @@ class PdfReaderService with ChangeNotifier {
   PdfPageLayoutMode get pageLayoutMode => _pageLayoutMode;
   PdfTextSearchResult get searchResult => _searchResult;
   bool get isSearching => _isSearching;
+  bool get hasUnsavedAnnotations => _annotationsModified;
 
   PdfReaderService() {
     pdfViewerController.addListener(_onControllerChanged);
+  }
+
+  /// Initialize the service with a PDF file path.
+  /// This should be called when the PDF is opened.
+  Future<void> initWithFile(String filePath) async {
+    _filePath = filePath;
+    // Load saved annotations
+    await _loadAnnotations();
   }
 
   void _onControllerChanged() {
@@ -33,6 +46,9 @@ class PdfReaderService with ChangeNotifier {
 
   @override
   void dispose() {
+    // Save annotations before disposing
+    _saveAnnotationsIfNeeded();
+
     pdfViewerController.removeListener(_onControllerChanged);
     pdfViewerController.dispose();
     searchController.dispose();
@@ -42,6 +58,65 @@ class PdfReaderService with ChangeNotifier {
     }
     _debounce?.cancel();
     super.dispose();
+  }
+
+  /// Load saved annotations from storage.
+  Future<void> _loadAnnotations() async {
+    if (_filePath == null) return;
+
+    try {
+      _loadedAnnotations = await AnnotationStorageService.loadAnnotations(
+        _filePath!,
+      );
+
+      if (_loadedAnnotations != null && _loadedAnnotations!.isNotEmpty) {
+        // We need to add the annotations after the document is loaded
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final state = pdfViewerKey.currentState;
+          if (state != null) {
+            for (final annotation in _loadedAnnotations!) {
+              pdfViewerController.addAnnotation(annotation);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading annotations: $e');
+    }
+  }
+
+  /// Save the current annotations to storage if they have been modified.
+  Future<void> _saveAnnotationsIfNeeded() async {
+    if (_filePath == null || !_annotationsModified) return;
+
+    try {
+      final annotations = pdfViewerController.getAnnotations();
+      if (annotations.isNotEmpty) {
+        await AnnotationStorageService.saveAnnotations(_filePath!, annotations);
+        _annotationsModified = false;
+      }
+    } catch (e) {
+      debugPrint('Error saving annotations: $e');
+    }
+  }
+
+  /// Save annotations immediately, regardless of modification status.
+  /// This can be called when explicitly saving or when the app is paused.
+  Future<void> saveAnnotations() async {
+    if (_filePath == null) return;
+
+    try {
+      final annotations = pdfViewerController.getAnnotations();
+      await AnnotationStorageService.saveAnnotations(_filePath!, annotations);
+      _annotationsModified = false;
+    } catch (e) {
+      debugPrint('Error saving annotations: $e');
+    }
+  }
+
+  /// Should be called when annotations are added, modified, or removed.
+  void onAnnotationsChanged() {
+    _annotationsModified = true;
   }
 
   void onSearchTextChanged(String text) {
