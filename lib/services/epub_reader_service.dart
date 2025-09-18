@@ -15,6 +15,11 @@ class EpubReaderService with ChangeNotifier {
   String? _currentCfiPosition;
   PageController? _pageController; // Make nullable
 
+  // Font settings
+  double? _fontSize;
+  String? _fontFamily;
+  bool _loadingFontSettings = true;
+
   // Getter with lazy initialization for the PageController
   PageController get pageController {
     _pageController ??= PageController(initialPage: _currentChapterIndex);
@@ -28,9 +33,15 @@ class EpubReaderService with ChangeNotifier {
   double get scrollPosition => _scrollPosition;
   String? get currentCfiPosition => _currentCfiPosition;
 
+  // Font settings getters
+  double get fontSize => _fontSize ?? 16.0;
+  String get fontFamily => _fontFamily ?? 'Default';
+  bool get loadingFontSettings => _loadingFontSettings;
+
   EpubReaderService(this.filePath) {
     // We'll initialize the PageController after we know the chapter index
     _loadBook();
+    _loadFontSettings();
   }
 
   Future<void> _loadBook() async {
@@ -169,6 +180,33 @@ class EpubReaderService with ChangeNotifier {
     if (_currentCfiPosition != null && _currentCfiPosition!.isNotEmpty) {
       await PrefsHelper.saveEpubCfiPosition(filePath, _currentCfiPosition!);
     }
+  }
+
+  // Font settings methods
+  Future<void> _loadFontSettings() async {
+    try {
+      _fontSize = await PrefsHelper.getEpubFontSize();
+      _fontFamily = await PrefsHelper.getEpubFontFamily();
+      _loadingFontSettings = false;
+      notifyListeners();
+    } catch (e) {
+      _fontSize = 16.0;
+      _fontFamily = 'Default';
+      _loadingFontSettings = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateFontSize(double size) async {
+    _fontSize = size;
+    await PrefsHelper.saveEpubFontSize(size);
+    notifyListeners();
+  }
+
+  Future<void> updateFontFamily(String family) async {
+    _fontFamily = family;
+    await PrefsHelper.saveEpubFontFamily(family);
+    notifyListeners();
   }
 
   @override
