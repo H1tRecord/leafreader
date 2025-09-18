@@ -20,7 +20,7 @@ class HomeService with ChangeNotifier {
   // Sort settings
   SortOption _sortOption = SortOption.name;
   bool _sortAscending = true;
-  
+
   // Multi-select functionality
   bool _isMultiSelectMode = false;
   final Set<FileSystemEntity> _selectedFiles = {};
@@ -229,7 +229,7 @@ class HomeService with ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   // Toggle file selection
   void toggleFileSelection(FileSystemEntity file) {
     if (_selectedFiles.contains(file)) {
@@ -243,43 +243,43 @@ class HomeService with ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   // Inverse selection - select all unselected files and deselect all selected files
   void inverseSelection() {
     // Create a set of currently filtered files
     final Set<FileSystemEntity> filteredFilesSet = Set.from(_filteredFiles);
-    
+
     // Create new set for the inverse selection
     final Set<FileSystemEntity> newSelection = {};
-    
+
     // Add all filtered files that aren't currently selected
     for (final file in filteredFilesSet) {
       if (!_selectedFiles.contains(file)) {
         newSelection.add(file);
       }
     }
-    
+
     // Update the selected files with the inverse selection
     _selectedFiles.clear();
     _selectedFiles.addAll(newSelection);
-    
+
     // If nothing is selected after inversion, exit multi-select mode
     if (_selectedFiles.isEmpty) {
       _isMultiSelectMode = false;
     }
-    
+
     notifyListeners();
   }
-  
+
   // Check if a file is selected
   bool isFileSelected(FileSystemEntity file) {
     return _selectedFiles.contains(file);
   }
-  
+
   // Delete selected files
   Future<void> deleteSelectedFiles(BuildContext context) async {
     if (_selectedFiles.isEmpty) return;
-    
+
     final fileCount = _selectedFiles.length;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -306,10 +306,10 @@ class HomeService with ChangeNotifier {
 
     if (confirmed == true) {
       int deletedCount = 0;
-      
+
       // Create a copy of the selected files to iterate
       final filesToDelete = Set<FileSystemEntity>.from(_selectedFiles);
-      
+
       for (final file in filesToDelete) {
         try {
           await file.delete();
@@ -320,13 +320,15 @@ class HomeService with ChangeNotifier {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Failed to delete "${path.basename(file.path)}": $e'),
+                content: Text(
+                  'Failed to delete "${path.basename(file.path)}": $e',
+                ),
               ),
             );
           }
         }
       }
-      
+
       // Clear selection and exit multi-select mode
       _selectedFiles.clear();
       _isMultiSelectMode = false;
@@ -335,7 +337,9 @@ class HomeService with ChangeNotifier {
       if (context.mounted && deletedCount > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Deleted $deletedCount ${deletedCount == 1 ? 'file' : 'files'}.'),
+            content: Text(
+              'Deleted $deletedCount ${deletedCount == 1 ? 'file' : 'files'}.',
+            ),
           ),
         );
       }

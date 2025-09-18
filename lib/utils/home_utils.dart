@@ -280,7 +280,7 @@ Widget buildListView(BuildContext context, HomeService homeService) {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         child: ListTile(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          tileColor: homeService.isFileSelected(file) 
+          tileColor: homeService.isFileSelected(file)
               ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4)
               : Theme.of(context).colorScheme.surface,
           onTap: () {
@@ -308,7 +308,8 @@ Widget buildListView(BuildContext context, HomeService homeService) {
                 color: _getFileColor(context, fileExtension),
                 size: 30,
               ),
-              if (homeService.isMultiSelectMode && homeService.isFileSelected(file))
+              if (homeService.isMultiSelectMode &&
+                  homeService.isFileSelected(file))
                 Positioned(
                   bottom: -4,
                   right: -4,
@@ -444,7 +445,7 @@ Widget buildGridView(BuildContext context, HomeService homeService) {
 
       return Card(
         elevation: 1,
-        color: homeService.isFileSelected(file) 
+        color: homeService.isFileSelected(file)
             ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4)
             : null,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -544,7 +545,8 @@ Widget buildGridView(BuildContext context, HomeService homeService) {
               ),
             ),
             // Show selection checkmark
-            if (homeService.isMultiSelectMode && homeService.isFileSelected(file))
+            if (homeService.isMultiSelectMode &&
+                homeService.isFileSelected(file))
               Positioned(
                 top: 8,
                 left: 8,
@@ -561,7 +563,7 @@ Widget buildGridView(BuildContext context, HomeService homeService) {
                   ),
                 ),
               ),
-              
+
             Positioned(
               top: 8,
               right: 8,
