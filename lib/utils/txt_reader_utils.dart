@@ -1,0 +1,345 @@
+import 'package:flutter/material.dart';
+import '../services/txt_reader_service.dart';
+
+PreferredSizeWidget buildAppBar(
+  BuildContext context,
+  TxtReaderService service,
+  String fileName,
+) {
+  if (service.isSearching) {
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => service.toggleSearch(),
+      ),
+      title: TextField(
+        controller: service.searchController,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: 'Search in text',
+          border: InputBorder.none,
+          hintStyle: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface.withAlpha(153),
+          ),
+        ),
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+      ),
+      actions: [
+        if (service.searchController.text.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: () => service.clearSearch(),
+          ),
+      ],
+    );
+  }
+
+  return AppBar(
+    title: Text(fileName),
+    actions: [
+      IconButton(
+        icon: const Icon(Icons.search),
+        tooltip: 'Search text',
+        onPressed: () => service.toggleSearch(),
+      ),
+      IconButton(
+        icon: const Icon(Icons.settings),
+        tooltip: 'Reader Settings',
+        onPressed: () => showReaderSettingsDialog(context, service),
+      ),
+    ],
+  );
+}
+
+Widget buildBody(BuildContext context, TxtReaderService service) {
+  if (service.isLoading) {
+    return const Center(child: CircularProgressIndicator());
+  }
+
+  if (service.errorMessage != null) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Error Loading Text File',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(service.errorMessage!, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  return Stack(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          controller: service.scrollController,
+          child: RichText(text: buildTextSpan(context, service)),
+        ),
+      ),
+      if (service.isSearching && service.searchResults.isNotEmpty)
+        buildSearchNavigationPanel(context, service),
+    ],
+  );
+}
+
+TextSpan buildTextSpan(BuildContext context, TxtReaderService service) {
+  if (service.content == null) {
+    return const TextSpan(text: '');
+  }
+
+  FontFamily fontFamily;
+  switch (service.fontFamily) {
+    case 'Serif':
+      fontFamily = FontFamily.serif;
+      break;
+    case 'Sans-serif':
+      fontFamily = FontFamily.sansSerif;
+      break;
+    case 'Monospace':
+      fontFamily = FontFamily.monospace;
+      break;
+    default:
+      fontFamily = FontFamily.default_;
+      break;
+  }
+
+  if (!service.isSearching || service.searchResults.isEmpty) {
+    return TextSpan(
+      text: service.content,
+      style: TextStyle(
+        fontSize: service.fontSize,
+        fontFamily: fontFamily.name,
+        color: Theme.of(context).textTheme.bodyLarge?.color,
+      ),
+    );
+  }
+
+  final spans = <TextSpan>[];
+  int lastEnd = 0;
+
+  for (int i = 0; i < service.searchResults.length; i++) {
+    final start = service.searchResults[i];
+    final end = start + service.searchController.text.length;
+
+    if (start > lastEnd) {
+      spans.add(
+        TextSpan(
+          text: service.content!.substring(lastEnd, start),
+          style: TextStyle(
+            fontSize: service.fontSize,
+            fontFamily: fontFamily.name,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+        ),
+      );
+    }
+
+    spans.add(
+      TextSpan(
+        text: service.content!.substring(start, end),
+        style: TextStyle(
+          fontSize: service.fontSize,
+          fontFamily: fontFamily.name,
+          color: i == service.currentSearchIndex
+              ? Colors.black
+              : Theme.of(context).brightness == Brightness.light
+              ? Colors.black
+              : Colors.white,
+          backgroundColor: i == service.currentSearchIndex
+              ? Colors.orange.withAlpha(179)
+              : Colors.yellow.withAlpha(77),
+          fontWeight: i == service.currentSearchIndex
+              ? FontWeight.bold
+              : FontWeight.normal,
+        ),
+      ),
+    );
+
+    lastEnd = end;
+  }
+
+  if (lastEnd < service.content!.length) {
+    spans.add(
+      TextSpan(
+        text: service.content!.substring(lastEnd),
+        style: TextStyle(
+          fontSize: service.fontSize,
+          fontFamily: fontFamily.name,
+          color: Theme.of(context).textTheme.bodyLarge?.color,
+        ),
+      ),
+    );
+  }
+
+  return TextSpan(children: spans);
+}
+
+void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          return SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Text Reader Settings',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                          tooltip: 'Close',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Font Size: ${service.fontSize.toStringAsFixed(1)}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Slider(
+                          value: service.fontSize,
+                          min: 8.0,
+                          max: 32.0,
+                          divisions: 24,
+                          label: service.fontSize.toStringAsFixed(1),
+                          onChanged: (value) {
+                            setModalState(() {
+                              service.setFontSize(value);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Font Family',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: service.fontFamily,
+                          items: ['Default', 'Serif', 'Sans-serif', 'Monospace']
+                              .map(
+                                (family) => DropdownMenuItem(
+                                  value: family,
+                                  child: Text(family),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setModalState(() {
+                                service.setFontFamily(value);
+                              });
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+  );
+}
+
+Widget buildSearchNavigationPanel(
+  BuildContext context,
+  TxtReaderService service,
+) {
+  return Positioned(
+    bottom: 0,
+    left: 0,
+    right: 0,
+    child: Material(
+      elevation: 4,
+      child: Container(
+        color: Theme.of(context).colorScheme.surface,
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Result ${service.currentSearchIndex + 1} of ${service.searchResults.length}',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_up),
+                    tooltip: 'Previous result',
+                    onPressed: () => service.previousSearchResult(),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down),
+                    tooltip: 'Next result',
+                    onPressed: () => service.nextSearchResult(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}

@@ -1,81 +1,29 @@
 import 'package:flutter/material.dart';
-import '../utils/prefs_helper.dart';
+import 'package:provider/provider.dart';
+import '../services/splash_service.dart';
+import '../utils/splash_utils.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-
-    // Add initialization logic here
-    Future.delayed(const Duration(seconds: 3), () {
-      // Check if this is the first time opening the app
-      _checkFirstTimeUser();
-    });
-  }
-
-  Future<void> _checkFirstTimeUser() async {
-    // Check if user has completed onboarding
-    bool onboardingCompleted = await PrefsHelper.isOnboardingCompleted();
-
-    // Guard against using BuildContext after widget is disposed
-    if (!mounted) return;
-
-    if (!onboardingCompleted) {
-      // Navigate to onboarding
-      Navigator.pushReplacementNamed(context, '/onboarding');
-    } else {
-      // Navigate directly to home
-      Navigator.pushReplacementNamed(context, '/home');
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Use theme-aware surface color
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // App logo
-            Image.asset(
-              'assets/logo.png',
-              height: 150,
-              // If you don't have a logo yet, you can comment this out
-              // and use a placeholder or just text
-              errorBuilder: (context, error, stackTrace) => Icon(
-                Icons.book,
-                size: 100,
-                color: Theme.of(context).primaryColor,
-              ),
+    return ChangeNotifierProvider(
+      create: (_) => SplashService(),
+      child: Consumer<SplashService>(
+        builder: (context, service, child) {
+          // Use a FutureBuilder to call the navigation logic after the first frame
+          return FutureBuilder(
+            future: Future.delayed(
+              const Duration(seconds: 3),
+              () => service.checkFirstTimeUser(context),
             ),
-            const SizedBox(height: 24),
-            // App name
-            Text(
-              'LeafReader',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Loading indicator
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Theme.of(context).primaryColor,
-              ),
-            ),
-          ],
-        ),
+            builder: (context, snapshot) {
+              // The splash screen UI is built by buildSplashScreen
+              return buildSplashScreen(context);
+            },
+          );
+        },
       ),
     );
   }

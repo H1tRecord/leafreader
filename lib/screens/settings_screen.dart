@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import '../utils/prefs_helper.dart';
+import '../services/settings_service.dart';
+import '../utils/settings_utils.dart';
 import '../utils/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,22 +12,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Settings
+  final SettingsService _settingsService = SettingsService();
   bool _notifications = true;
-
-  // We'll get theme mode directly from provider instead of maintaining separate state
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  // Load saved settings
-  Future<void> _loadSettings() async {
-    // We'll get theme settings directly from the provider when needed
-    // This is just for other settings that might be added later
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +27,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
-          _buildSectionHeader('Appearance'),
+          buildSectionHeader(context, 'Appearance'),
 
           // Theme mode selection
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, _) {
-              return _buildDropdownTile(
+              return buildDropdownTile(
+                context: context,
                 title: 'Theme Mode',
                 value: themeProvider.themeModeString,
                 items: const ['System', 'Light', 'Dark'],
@@ -80,27 +67,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
-                          _buildAccentColorCard(
+                          buildAccentColorCard(
+                            context,
                             'Green',
                             Colors.green,
                             themeProvider,
                           ),
-                          _buildAccentColorCard(
+                          buildAccentColorCard(
+                            context,
                             'Blue',
                             Colors.blue,
                             themeProvider,
                           ),
-                          _buildAccentColorCard(
+                          buildAccentColorCard(
+                            context,
                             'Purple',
                             Colors.purple,
                             themeProvider,
                           ),
-                          _buildAccentColorCard(
+                          buildAccentColorCard(
+                            context,
                             'Orange',
                             Colors.orange,
                             themeProvider,
                           ),
-                          _buildAccentColorCard(
+                          buildAccentColorCard(
+                            context,
                             'Red',
                             Colors.red,
                             themeProvider,
@@ -114,8 +106,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          _buildSectionHeader('Notifications'),
-          _buildSwitchTile(
+          buildSectionHeader(context, 'Notifications'),
+          buildSwitchTile(
+            context: context,
             title: 'Enable Notifications',
             subtitle: 'Receive app notifications',
             value: _notifications,
@@ -127,8 +120,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          _buildSectionHeader('Account'),
-          _buildListTile(
+          buildSectionHeader(context, 'Account'),
+          buildListTile(
+            context: context,
             title: 'Profile',
             subtitle: 'Edit your profile information',
             icon: Icons.person,
@@ -137,7 +131,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          _buildListTile(
+          buildListTile(
+            context: context,
             title: 'Privacy',
             subtitle: 'Manage your privacy settings',
             icon: Icons.privacy_tip,
@@ -146,8 +141,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          _buildSectionHeader('About'),
-          _buildListTile(
+          buildSectionHeader(context, 'About'),
+          buildListTile(
+            context: context,
             title: 'About LeafReader',
             subtitle: 'Learn more about the app',
             icon: Icons.info_outline,
@@ -156,7 +152,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          _buildListTile(
+          buildListTile(
+            context: context,
             title: 'Help & Feedback',
             subtitle: 'Get help or send feedback',
             icon: Icons.help_outline,
@@ -165,591 +162,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          _buildSectionHeader('Reading Settings'),
-          _buildListTile(
+          buildSectionHeader(context, 'Reading Settings'),
+          buildListTile(
+            context: context,
             title: 'EPUB Reader Settings',
             subtitle: 'Configure font size and style for EPUB files',
             icon: Icons.book,
             onTap: () {
-              _showEpubReaderSettings();
+              _settingsService.showEpubReaderSettings(context);
             },
           ),
-          _buildListTile(
+          buildListTile(
+            context: context,
             title: 'Text Reader Settings',
             subtitle: 'Configure font size and style for text files',
             icon: Icons.text_fields,
             onTap: () {
-              _showTextReaderSettings();
+              _settingsService.showTextReaderSettings(context);
             },
           ),
 
-          _buildSectionHeader('Developer Options'),
-          _buildListTile(
+          buildSectionHeader(context, 'Developer Options'),
+          buildListTile(
+            context: context,
             title: 'Reset Onboarding',
             subtitle: 'Restart the onboarding process on next app launch',
             icon: Icons.refresh,
             onTap: () {
-              _showResetOnboardingConfirmation();
+              _settingsService.showResetOnboardingConfirmation(context);
             },
           ),
-          _buildListTile(
+          buildListTile(
+            context: context,
             title: 'Reset All Settings',
             subtitle: 'Reset all app settings to default values',
             icon: Icons.restart_alt,
             onTap: () {
-              _showResetAllSettingsConfirmation();
+              _settingsService.showResetAllSettingsConfirmation(context);
             },
           ),
-          _buildListTile(
+          buildListTile(
+            context: context,
             title: 'Reset Permissions',
             subtitle: 'Reset app permissions and request them again',
             icon: Icons.security,
             onTap: () {
-              _showResetPermissionsConfirmation();
+              _settingsService.showResetPermissionsConfirmation(context);
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return SwitchListTile(
-      title: Text(title),
-      subtitle: Text(subtitle),
-      value: value,
-      onChanged: onChanged,
-      activeColor: Theme.of(context).colorScheme.primary,
-    );
-  }
-
-  Widget _buildDropdownTile({
-    required String title,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(fontSize: 16),
-          ),
-          DropdownButton<String>(
-            value: value,
-            items: items
-                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                .toList(),
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: Icon(
-        Icons.arrow_forward_ios,
-        size: 16,
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey[400]
-            : Colors.grey[600],
-      ),
-      onTap: onTap,
-    );
-  }
-
-  // Show confirmation dialog before resetting onboarding
-  void _showResetOnboardingConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset Onboarding?'),
-        content: const Text(
-          'This will reset the onboarding process. The next time you launch the app, '
-          'you will see the onboarding screens again. This is meant for debugging purposes only.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Reset the onboarding completion status
-              await PrefsHelper.resetOnboarding();
-
-              // Close the dialog
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-
-              // Show confirmation dialog instead of snackbar
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Onboarding Reset'),
-                  content: const Text(
-                    'Onboarding has been reset successfully. Restart the app to see the onboarding screens.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                ),
-              );
-            },
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Show confirmation dialog before resetting all settings
-  void _showResetAllSettingsConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset All Settings?'),
-        content: const Text(
-          'This will reset all app settings to their default values. '
-          'The next time you launch the app, you will see the onboarding screens again. '
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Reset all app settings
-              await PrefsHelper.resetAllSettings();
-
-              // Close the dialog
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-
-              // Show confirmation dialog instead of snackbar
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Settings Reset Complete'),
-                  content: const Text(
-                    'All settings have been reset to defaults. Restart the app to see changes.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                ),
-              );
-            },
-            child: const Text('Reset All'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Show confirmation dialog before resetting permissions
-  // Show EPUB reader settings dialog
-  void _showEpubReaderSettings() async {
-    double epubFontSize = await PrefsHelper.getEpubFontSize();
-    String epubFontFamily = await PrefsHelper.getEpubFontFamily();
-
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'EPUB Reader Settings',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                            tooltip: 'Close',
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(),
-
-                    // Font Size
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Font Size: ${epubFontSize.toStringAsFixed(1)}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Slider(
-                            value: epubFontSize,
-                            min: 10.0,
-                            max: 30.0,
-                            divisions: 20,
-                            label: epubFontSize.toStringAsFixed(1),
-                            onChanged: (value) {
-                              setModalState(() {
-                                epubFontSize = value;
-                              });
-                            },
-                            onChangeEnd: (value) {
-                              PrefsHelper.saveEpubFontSize(value);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Font Family
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Font Family',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: epubFontFamily,
-                            items: ['Default', 'Serif', 'Sans-serif']
-                                .map(
-                                  (family) => DropdownMenuItem(
-                                    value: family,
-                                    child: Text(family),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setModalState(() {
-                                  epubFontFamily = value;
-                                });
-                                PrefsHelper.saveEpubFontFamily(value);
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-    );
-  }
-
-  // Show Text reader settings dialog
-  void _showTextReaderSettings() async {
-    double textFontSize = await PrefsHelper.getTextFontSize();
-    String textFontFamily = await PrefsHelper.getTextFontFamily();
-
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Text Reader Settings',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                            tooltip: 'Close',
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(),
-
-                    // Font Size
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Font Size: ${textFontSize.toStringAsFixed(1)}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Slider(
-                            value: textFontSize,
-                            min: 8.0,
-                            max: 32.0,
-                            divisions: 24,
-                            label: textFontSize.toStringAsFixed(1),
-                            onChanged: (value) {
-                              setModalState(() {
-                                textFontSize = value;
-                              });
-                            },
-                            onChangeEnd: (value) {
-                              PrefsHelper.saveTextFontSize(value);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Font Family
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Font Family',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: textFontFamily,
-                            items:
-                                ['Default', 'Serif', 'Sans-serif', 'Monospace']
-                                    .map(
-                                      (family) => DropdownMenuItem(
-                                        value: family,
-                                        child: Text(family),
-                                      ),
-                                    )
-                                    .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setModalState(() {
-                                  textFontFamily = value;
-                                });
-                                PrefsHelper.saveTextFontFamily(value);
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-    );
-  }
-
-  void _showResetPermissionsConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset Permissions?'),
-        content: const Text(
-          'This will reset all app permissions. You\'ll need to grant permissions again '
-          'the next time they\'re required. This is useful if you\'re experiencing permission issues.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Open app settings to let user manually reset permissions
-              await openAppSettings();
-
-              // Close the dialog
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-
-              // Show confirmation dialog with instructions
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Reset Permissions'),
-                  content: const Text(
-                    'The app settings page has been opened. To reset permissions:\n\n'
-                    '1. Find LeafReader in the list\n'
-                    '2. Tap on Permissions\n'
-                    '3. Disable and re-enable storage permissions',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                ),
-              );
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Build an accent color selection card
-  Widget _buildAccentColorCard(
-    String name,
-    Color color,
-    ThemeProvider themeProvider,
-  ) {
-    final bool isSelected = themeProvider.accentColorString == name;
-
-    return GestureDetector(
-      onTap: () {
-        // Apply accent color change immediately
-        themeProvider.setAccentColor(name);
-      },
-      child: Container(
-        width: 80,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: color.withAlpha(204),
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected
-              ? Border.all(color: Colors.white, width: 3)
-              : Border.all(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[700]!
-                      : Colors.grey[300]!,
-                  width: 1,
-                ),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).shadowColor.withAlpha(51),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isSelected)
-              const Icon(Icons.check_circle, color: Colors.white, size: 18),
-            Text(
-              name,
-              style: const TextStyle(
-                color: Colors
-                    .white, // Keep white for contrast on colored backgrounds
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
