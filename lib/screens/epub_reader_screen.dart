@@ -21,8 +21,10 @@ class EpubReaderScreen extends StatelessWidget {
         builder: (context, service, child) {
           return PopScope(
             canPop: true,
-            onPopInvokedWithResult: (didPop, result) async {
-              await service.savePosition();
+            onPopInvoked: (didPop) async {
+              if (didPop) {
+                await service.savePositionOnExit();
+              }
             },
             child: Scaffold(
               appBar: buildAppBar(context, service, fileName),

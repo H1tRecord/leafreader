@@ -1,3 +1,4 @@
+import 'package:leafreader/services/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -15,8 +16,11 @@ void main() async {
   final themeProvider = await ThemeProvider.create();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => themeProvider,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider(create: (_) => HomeService()),
+      ],
       child: const MainApp(),
     ),
   );
