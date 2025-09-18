@@ -162,6 +162,20 @@ class PrefsHelper {
     return prefs.getString(_keyTextFontFamily) ?? 'Default'; // Default
   }
 
+  // Save EPUB position using CFI
+  static Future<void> saveEpubCfiPosition(String filePath, String cfi) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'epub_cfi_${filePath.hashCode}';
+    await prefs.setString(key, cfi);
+  }
+
+  // Get EPUB position using CFI
+  static Future<String?> getEpubCfiPosition(String filePath) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'epub_cfi_${filePath.hashCode}';
+    return prefs.getString(key);
+  }
+
   // Reset all app settings to defaults (for debugging)
   static Future<void> resetAllSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -177,5 +191,6 @@ class PrefsHelper {
     await prefs.setDouble(_keyTextFontSize, 16.0);
     await prefs.setString(_keyTextFontFamily, 'Default');
     // Keep folder path (don't reset) to avoid data loss
+    // Keep EPUB positions (don't reset) to avoid losing reading progress
   }
 }

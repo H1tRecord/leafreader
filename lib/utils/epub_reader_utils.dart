@@ -36,7 +36,31 @@ Widget buildBody(BuildContext context, EpubReaderService service) {
     controller: service.pageController,
     itemCount: service.book?.Chapters?.length ?? 0,
     itemBuilder: (context, index) {
+      // Use a custom scroll controller for each chapter
+      // to track position within the chapter
+      final scrollController = ScrollController(
+        // Initialize with saved position if it's the current chapter
+        initialScrollOffset: index == service.currentChapterIndex
+            ? service.scrollPosition *
+                  _estimateContentHeight(context, service, index)
+            : 0.0,
+      );
+
+      // Add listener to update position when scrolling
+      scrollController.addListener(() {
+        if (index == service.currentChapterIndex &&
+            scrollController.hasClients) {
+          final maxScroll = scrollController.position.maxScrollExtent;
+          if (maxScroll > 0) {
+            // Calculate relative position (0.0 to 1.0)
+            final position = scrollController.offset / maxScroll;
+            service.updateScrollPosition(position);
+          }
+        }
+      });
+
       return SingleChildScrollView(
+        controller: scrollController,
         padding: const EdgeInsets.all(16.0),
         child: Html(data: service.getChapterHtmlContent(index)),
       );
@@ -45,6 +69,19 @@ Widget buildBody(BuildContext context, EpubReaderService service) {
       service.goToChapter(index);
     },
   );
+}
+
+// Helper function to estimate content height for scroll positioning
+double _estimateContentHeight(
+  BuildContext context,
+  EpubReaderService service,
+  int index,
+) {
+  // This is a rough estimation based on content length
+  // A more accurate approach would involve measuring the actual rendered content
+  final content = service.getChapterHtmlContent(index);
+  // Assume a basic ratio of content length to height (adjust as needed)
+  return content.length * 0.5;
 }
 
 void showChaptersDialog(BuildContext context, EpubReaderService service) {
