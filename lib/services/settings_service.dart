@@ -204,14 +204,25 @@ class SettingsService {
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             value: epubFontFamily,
-                            items: ['Default', 'Serif', 'Sans-serif']
-                                .map(
-                                  (family) => DropdownMenuItem(
-                                    value: family,
-                                    child: Text(family),
-                                  ),
-                                )
-                                .toList(),
+                            items:
+                                const [
+                                      'Default',
+                                      'Serif',
+                                      'Sans-serif',
+                                      'Monospace',
+                                      'Roboto',
+                                      'Helvetica',
+                                      'Georgia',
+                                      'Times New Roman',
+                                      'Courier New',
+                                    ]
+                                    .map(
+                                      (family) => DropdownMenuItem(
+                                        value: family,
+                                        child: Text(family),
+                                      ),
+                                    )
+                                    .toList(),
                             onChanged: (value) {
                               if (value != null) {
                                 setModalState(() {
@@ -331,7 +342,17 @@ class SettingsService {
                           DropdownButtonFormField<String>(
                             value: textFontFamily,
                             items:
-                                ['Default', 'Serif', 'Sans-serif', 'Monospace']
+                                const [
+                                      'Default',
+                                      'Serif',
+                                      'Sans-serif',
+                                      'Monospace',
+                                      'Roboto',
+                                      'Helvetica',
+                                      'Georgia',
+                                      'Times New Roman',
+                                      'Courier New',
+                                    ]
                                     .map(
                                       (family) => DropdownMenuItem(
                                         value: family,
@@ -421,6 +442,67 @@ class SettingsService {
           ),
         ],
       ),
+    );
+  }
+
+  void showHelpAndFeedback(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Help & Feedback',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'We would love to hear from you. For questions, bug reports, or suggestions, reach out via:',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.email_outlined),
+                  title: const Text('Support Email'),
+                  subtitle: const Text('support@leafreader.app'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.chat_bubble_outline),
+                  title: const Text('Community Channel'),
+                  subtitle: const Text('Join the LeafReader discussion group'),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'We typically respond within two business days.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

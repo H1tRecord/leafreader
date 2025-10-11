@@ -97,30 +97,12 @@ TextSpan buildTextSpan(BuildContext context, TxtReaderService service) {
     return const TextSpan(text: '');
   }
 
-  FontFamily fontFamily;
-  switch (service.fontFamily) {
-    case 'Serif':
-      fontFamily = FontFamily.serif;
-      break;
-    case 'Sans-serif':
-      fontFamily = FontFamily.sansSerif;
-      break;
-    case 'Monospace':
-      fontFamily = FontFamily.monospace;
-      break;
-    default:
-      fontFamily = FontFamily.default_;
-      break;
-  }
+  final fontFamily = _resolveFontFamily(service.fontFamily);
 
   if (!service.isSearching || service.searchResults.isEmpty) {
     return TextSpan(
       text: service.content,
-      style: TextStyle(
-        fontSize: service.fontSize,
-        fontFamily: fontFamily.name,
-        color: Theme.of(context).textTheme.bodyLarge?.color,
-      ),
+      style: _readerTextStyle(context, service, fontFamily),
     );
   }
 
@@ -135,11 +117,7 @@ TextSpan buildTextSpan(BuildContext context, TxtReaderService service) {
       spans.add(
         TextSpan(
           text: service.content!.substring(lastEnd, start),
-          style: TextStyle(
-            fontSize: service.fontSize,
-            fontFamily: fontFamily.name,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-          ),
+          style: _readerTextStyle(context, service, fontFamily),
         ),
       );
     }
@@ -147,9 +125,10 @@ TextSpan buildTextSpan(BuildContext context, TxtReaderService service) {
     spans.add(
       TextSpan(
         text: service.content!.substring(start, end),
-        style: TextStyle(
-          fontSize: service.fontSize,
-          fontFamily: fontFamily.name,
+        style: _readerTextStyle(
+          context,
+          service,
+          fontFamily,
           color: i == service.currentSearchIndex
               ? Colors.black
               : Theme.of(context).brightness == Brightness.light
@@ -158,9 +137,7 @@ TextSpan buildTextSpan(BuildContext context, TxtReaderService service) {
           backgroundColor: i == service.currentSearchIndex
               ? Colors.orange.withAlpha(179)
               : Colors.yellow.withAlpha(77),
-          fontWeight: i == service.currentSearchIndex
-              ? FontWeight.bold
-              : FontWeight.normal,
+          fontWeight: i == service.currentSearchIndex ? FontWeight.bold : null,
         ),
       ),
     );
@@ -172,16 +149,55 @@ TextSpan buildTextSpan(BuildContext context, TxtReaderService service) {
     spans.add(
       TextSpan(
         text: service.content!.substring(lastEnd),
-        style: TextStyle(
-          fontSize: service.fontSize,
-          fontFamily: fontFamily.name,
-          color: Theme.of(context).textTheme.bodyLarge?.color,
-        ),
+        style: _readerTextStyle(context, service, fontFamily),
       ),
     );
   }
 
   return TextSpan(children: spans);
+}
+
+FontFamily _resolveFontFamily(String selection) {
+  switch (selection) {
+    case 'Serif':
+      return FontFamily.serif;
+    case 'Sans-serif':
+      return FontFamily.sansSerif;
+    case 'Monospace':
+      return FontFamily.monospace;
+    case 'Roboto':
+      return FontFamily.roboto;
+    case 'Helvetica':
+      return FontFamily.helvetica;
+    case 'Georgia':
+      return FontFamily.georgia;
+    case 'Times New Roman':
+      return FontFamily.timesNewRoman;
+    case 'Courier New':
+      return FontFamily.courierNew;
+    default:
+      return FontFamily.default_;
+  }
+}
+
+TextStyle _readerTextStyle(
+  BuildContext context,
+  TxtReaderService service,
+  FontFamily fontFamily, {
+  Color? color,
+  FontWeight? fontWeight,
+  Color? backgroundColor,
+}) {
+  final resolvedColor = color ?? Theme.of(context).textTheme.bodyLarge?.color;
+  final familyName = fontFamily.name.isEmpty ? null : fontFamily.name;
+  return TextStyle(
+    fontSize: service.fontSize,
+    fontFamily: familyName,
+    fontFamilyFallback: fontFamily.fallback,
+    color: resolvedColor,
+    fontWeight: fontWeight,
+    backgroundColor: backgroundColor,
+  );
 }
 
 void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
@@ -247,6 +263,24 @@ void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
                       horizontal: 16,
                       vertical: 8,
                     ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setModalState(() {
+                            service.resetToDefaults();
+                          });
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reset to Defaults'),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -257,14 +291,25 @@ void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: service.fontFamily,
-                          items: ['Default', 'Serif', 'Sans-serif', 'Monospace']
-                              .map(
-                                (family) => DropdownMenuItem(
-                                  value: family,
-                                  child: Text(family),
-                                ),
-                              )
-                              .toList(),
+                          items:
+                              const [
+                                    'Default',
+                                    'Serif',
+                                    'Sans-serif',
+                                    'Monospace',
+                                    'Roboto',
+                                    'Helvetica',
+                                    'Georgia',
+                                    'Times New Roman',
+                                    'Courier New',
+                                  ]
+                                  .map(
+                                    (family) => DropdownMenuItem(
+                                      value: family,
+                                      child: Text(family),
+                                    ),
+                                  )
+                                  .toList(),
                           onChanged: (value) {
                             if (value != null) {
                               setModalState(() {

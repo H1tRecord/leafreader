@@ -4,6 +4,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../services/onboarding_service.dart';
 import '../utils/theme_provider.dart';
 
+const String _logoAssetPath = 'assets/Leaf_Reader_Logo.png';
+
 Widget buildWelcomeStep(BuildContext context) {
   return Center(
     child: SingleChildScrollView(
@@ -27,10 +29,18 @@ Widget buildWelcomeStep(BuildContext context) {
                       ).colorScheme.primary.withAlpha(26),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      Icons.menu_book,
-                      size: 100,
-                      color: Theme.of(context).colorScheme.primary,
+                    child: ClipOval(
+                      child: Image.asset(
+                        _logoAssetPath,
+                        height: 100,
+                        width: 100,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.menu_book,
+                          size: 72,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
                     ),
                   ),
                 ),

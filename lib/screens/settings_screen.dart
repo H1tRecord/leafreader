@@ -13,7 +13,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final SettingsService _settingsService = SettingsService();
-  bool _notifications = true;
 
   @override
   Widget build(BuildContext context) {
@@ -26,192 +25,197 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          buildSectionHeader(context, 'Appearance'),
-
-          // Theme mode selection
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, _) {
-              return buildDropdownTile(
-                context: context,
-                title: 'Theme Mode',
-                value: themeProvider.themeModeString,
-                items: const ['System', 'Light', 'Dark'],
-                onChanged: (value) {
-                  if (value != null) {
-                    // Apply theme change
-                    themeProvider.setThemeMode(value);
-                  }
+          buildSettingsCard(
+            context: context,
+            title: 'Appearance',
+            leadingIcon: Icons.palette,
+            children: [
+              Consumer<ThemeProvider>(
+                builder: (context, themeProvider, _) {
+                  return buildDropdownTile(
+                    context: context,
+                    title: 'Theme Mode',
+                    value: themeProvider.themeModeString,
+                    items: const ['System', 'Light', 'Dark'],
+                    onChanged: (value) {
+                      if (value != null) {
+                        themeProvider.setThemeMode(value);
+                      }
+                    },
+                  );
                 },
-              );
-            },
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Accent Color',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              Consumer<ThemeProvider>(
+                builder: (context, themeProvider, _) {
+                  return SizedBox(
+                    height: 64,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        buildAccentColorCard(
+                          context,
+                          'Green',
+                          Colors.green,
+                          themeProvider,
+                        ),
+                        buildAccentColorCard(
+                          context,
+                          'Blue',
+                          Colors.blue,
+                          themeProvider,
+                        ),
+                        buildAccentColorCard(
+                          context,
+                          'Purple',
+                          Colors.purple,
+                          themeProvider,
+                        ),
+                        buildAccentColorCard(
+                          context,
+                          'Orange',
+                          Colors.orange,
+                          themeProvider,
+                        ),
+                        buildAccentColorCard(
+                          context,
+                          'Red',
+                          Colors.red,
+                          themeProvider,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-
-          // Accent color selection
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Accent Color',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                Consumer<ThemeProvider>(
-                  builder: (context, themeProvider, _) {
-                    return SizedBox(
-                      height: 60,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          buildAccentColorCard(
-                            context,
-                            'Green',
-                            Colors.green,
-                            themeProvider,
-                          ),
-                          buildAccentColorCard(
-                            context,
-                            'Blue',
-                            Colors.blue,
-                            themeProvider,
-                          ),
-                          buildAccentColorCard(
-                            context,
-                            'Purple',
-                            Colors.purple,
-                            themeProvider,
-                          ),
-                          buildAccentColorCard(
-                            context,
-                            'Orange',
-                            Colors.orange,
-                            themeProvider,
-                          ),
-                          buildAccentColorCard(
-                            context,
-                            'Red',
-                            Colors.red,
-                            themeProvider,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          buildSectionHeader(context, 'Notifications'),
-          buildSwitchTile(
+          const SizedBox(height: 20),
+          buildSettingsCard(
             context: context,
-            title: 'Enable Notifications',
-            subtitle: 'Receive app notifications',
-            value: _notifications,
-            onChanged: (value) {
-              setState(() {
-                _notifications = value;
-              });
-              // TODO: Implement notifications toggle
-            },
+            title: 'About',
+            leadingIcon: Icons.info_outline,
+            children: [
+              buildStaticInfoTile(
+                context: context,
+                title: 'LeafReader',
+                subtitle: 'Version 0.1.0',
+                icon: Icons.apps,
+              ),
+              const Divider(height: 24),
+              Text(
+                'Project Team',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              _buildTeamMemberRow('Kenneth James Aninipot'),
+              const SizedBox(height: 8),
+              _buildTeamMemberRow('John Dio Marigundon'),
+              const SizedBox(height: 8),
+              _buildTeamMemberRow('Aaron Teston'),
+              const SizedBox(height: 16),
+              buildListTile(
+                context: context,
+                title: 'Help & Feedback',
+                subtitle: 'Get help or share your thoughts',
+                icon: Icons.help_outline,
+                onTap: () {
+                  _settingsService.showHelpAndFeedback(context);
+                },
+              ),
+            ],
           ),
-
-          buildSectionHeader(context, 'Account'),
-          buildListTile(
+          const SizedBox(height: 20),
+          buildSettingsCard(
             context: context,
-            title: 'Profile',
-            subtitle: 'Edit your profile information',
-            icon: Icons.person,
-            onTap: () {
-              // TODO: Navigate to profile page
-            },
+            title: 'Reading Settings',
+            leadingIcon: Icons.menu_book_outlined,
+            children: [
+              buildListTile(
+                context: context,
+                title: 'EPUB Reader',
+                subtitle: 'Fonts, spacing, and appearance',
+                icon: Icons.book,
+                onTap: () {
+                  _settingsService.showEpubReaderSettings(context);
+                },
+              ),
+              buildListTile(
+                context: context,
+                title: 'Text Reader',
+                subtitle: 'Customize plain text experience',
+                icon: Icons.text_fields,
+                onTap: () {
+                  _settingsService.showTextReaderSettings(context);
+                },
+              ),
+            ],
           ),
-
-          buildListTile(
+          const SizedBox(height: 20),
+          buildSettingsCard(
             context: context,
-            title: 'Privacy',
-            subtitle: 'Manage your privacy settings',
-            icon: Icons.privacy_tip,
-            onTap: () {
-              // TODO: Navigate to privacy settings
-            },
-          ),
-
-          buildSectionHeader(context, 'About'),
-          buildListTile(
-            context: context,
-            title: 'About LeafReader',
-            subtitle: 'Learn more about the app',
-            icon: Icons.info_outline,
-            onTap: () {
-              // TODO: Show about dialog
-            },
-          ),
-
-          buildListTile(
-            context: context,
-            title: 'Help & Feedback',
-            subtitle: 'Get help or send feedback',
-            icon: Icons.help_outline,
-            onTap: () {
-              // TODO: Navigate to help page
-            },
-          ),
-
-          buildSectionHeader(context, 'Reading Settings'),
-          buildListTile(
-            context: context,
-            title: 'EPUB Reader Settings',
-            subtitle: 'Configure font size and style for EPUB files',
-            icon: Icons.book,
-            onTap: () {
-              _settingsService.showEpubReaderSettings(context);
-            },
-          ),
-          buildListTile(
-            context: context,
-            title: 'Text Reader Settings',
-            subtitle: 'Configure font size and style for text files',
-            icon: Icons.text_fields,
-            onTap: () {
-              _settingsService.showTextReaderSettings(context);
-            },
-          ),
-
-          buildSectionHeader(context, 'Developer Options'),
-          buildListTile(
-            context: context,
-            title: 'Reset Onboarding',
-            subtitle: 'Restart the onboarding process on next app launch',
-            icon: Icons.refresh,
-            onTap: () {
-              _settingsService.showResetOnboardingConfirmation(context);
-            },
-          ),
-          buildListTile(
-            context: context,
-            title: 'Reset All Settings',
-            subtitle: 'Reset all app settings to default values',
-            icon: Icons.restart_alt,
-            onTap: () {
-              _settingsService.showResetAllSettingsConfirmation(context);
-            },
-          ),
-          buildListTile(
-            context: context,
-            title: 'Reset Permissions',
-            subtitle: 'Reset app permissions and request them again',
-            icon: Icons.security,
-            onTap: () {
-              _settingsService.showResetPermissionsConfirmation(context);
-            },
+            title: 'Developer Options',
+            leadingIcon: Icons.build_circle_outlined,
+            accentColor: Theme.of(context).colorScheme.tertiary,
+            children: [
+              buildListTile(
+                context: context,
+                title: 'Reset Onboarding',
+                subtitle: 'Show onboarding screens on next launch',
+                icon: Icons.refresh,
+                onTap: () {
+                  _settingsService.showResetOnboardingConfirmation(context);
+                },
+              ),
+              buildListTile(
+                context: context,
+                title: 'Reset All Settings',
+                subtitle: 'Restore defaults and theme selections',
+                icon: Icons.restart_alt,
+                onTap: () {
+                  _settingsService.showResetAllSettingsConfirmation(context);
+                },
+              ),
+              buildListTile(
+                context: context,
+                title: 'Reset Permissions',
+                subtitle: 'Re-run platform permission prompts',
+                icon: Icons.security,
+                onTap: () {
+                  _settingsService.showResetPermissionsConfirmation(context);
+                },
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTeamMemberRow(String name) {
+    return Row(
+      children: [
+        Icon(
+          Icons.person,
+          size: 18,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(name, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+      ],
     );
   }
 }

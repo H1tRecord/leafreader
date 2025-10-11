@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const String _logoAssetPath = 'assets/Leaf_Reader_Logo.png';
+
 Widget buildSplashScreen(BuildContext context) {
   return Scaffold(
     backgroundColor: Theme.of(context).colorScheme.surface,
@@ -8,7 +10,7 @@ Widget buildSplashScreen(BuildContext context) {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Image.asset(
-            'assets/logo.png',
+            _logoAssetPath,
             height: 150,
             errorBuilder: (context, error, stackTrace) => Icon(
               Icons.book,
@@ -18,7 +20,7 @@ Widget buildSplashScreen(BuildContext context) {
           ),
           const SizedBox(height: 24),
           Text(
-            'LeafReader',
+            'Leaf Reader',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,

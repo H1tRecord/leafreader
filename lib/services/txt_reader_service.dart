@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import '../utils/prefs_helper.dart';
 
 enum FontFamily {
-  default_(''),
-  serif('serif'),
-  sansSerif('sans-serif'),
-  monospace('monospace');
+  default_('', const <String>[]),
+  serif('serif', const <String>['Times New Roman', 'Georgia', 'serif']),
+  sansSerif('sans-serif', const <String>['Helvetica', 'Arial', 'sans-serif']),
+  monospace('monospace', const <String>['Courier New', 'Courier', 'monospace']),
+  roboto('Roboto', const <String>['Helvetica', 'Arial', 'sans-serif']),
+  helvetica('Helvetica', const <String>['Arial', 'sans-serif']),
+  georgia('Georgia', const <String>['Times New Roman', 'serif']),
+  timesNewRoman('Times New Roman', const <String>['Georgia', 'serif']),
+  courierNew('Courier New', const <String>['Courier', 'monospace']);
 
   final String name;
-  const FontFamily(this.name);
+  final List<String> fallback;
+  const FontFamily(this.name, this.fallback);
 }
 
 class TxtReaderService with ChangeNotifier {
@@ -173,6 +179,14 @@ class TxtReaderService with ChangeNotifier {
   void setFontFamily(String family) {
     _fontFamily = family;
     PrefsHelper.saveTextFontFamily(family);
+    notifyListeners();
+  }
+
+  void resetToDefaults() {
+    _fontSize = 16.0;
+    _fontFamily = 'Default';
+    PrefsHelper.saveTextFontSize(_fontSize);
+    PrefsHelper.saveTextFontFamily(_fontFamily);
     notifyListeners();
   }
 }

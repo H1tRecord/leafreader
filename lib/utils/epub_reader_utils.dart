@@ -7,18 +7,71 @@ PreferredSizeWidget buildAppBar(
   EpubReaderService service,
   String fileName,
 ) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+
   return AppBar(
-    title: Text(fileName),
+    backgroundColor: colorScheme.surface,
+    foregroundColor: colorScheme.onSurface,
+    elevation: 0,
+    centerTitle: false,
+    toolbarHeight: 72,
+    titleSpacing: 0,
+    leadingWidth: 56,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back),
+      tooltip: 'Back',
+      onPressed: () => Navigator.of(context).maybePop(),
+    ),
+    title: Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fileName,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'EPUB Reader',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    ),
     actions: [
       IconButton(
-        icon: const Icon(Icons.format_size),
+        icon: const Icon(Icons.settings),
+        tooltip: 'Reader Settings',
         onPressed: () => showFontSettingsDialog(context, service),
       ),
       IconButton(
-        icon: const Icon(Icons.list),
+        icon: const Icon(Icons.search),
+        tooltip: 'Search',
+        onPressed: () => showSearchDialog(context, service),
+      ),
+      IconButton(
+        icon: const Icon(Icons.menu_book),
+        tooltip: 'Chapter List',
         onPressed: () => showChaptersDialog(context, service),
       ),
+      const SizedBox(width: 4),
     ],
+    bottom: PreferredSize(
+      preferredSize: const Size.fromHeight(1),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: colorScheme.outlineVariant,
+      ),
+    ),
   );
 }
 
@@ -45,6 +98,275 @@ Widget buildBody(BuildContext context, EpubReaderService service) {
     onPageChanged: (index) {
       service.goToChapter(index);
     },
+  );
+}
+
+enum _EpubSearchScope { chapter, book }
+
+Future<void> showSearchDialog(
+  BuildContext context,
+  EpubReaderService service,
+) async {
+  final queryController = TextEditingController();
+  final focusNode = FocusNode();
+
+  _EpubSearchScope scope = _EpubSearchScope.chapter;
+  List<EpubSearchHit> hits = [];
+  bool isSearching = false;
+  String? statusMessage = 'Enter a search term to begin.';
+  String activeQuery = '';
+
+  try {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            Future<void> handleSearch() async {
+              final query = queryController.text.trim();
+              if (query.isEmpty) {
+                setModalState(() {
+                  isSearching = false;
+                  hits = [];
+                  statusMessage = 'Enter a search term to begin.';
+                  activeQuery = '';
+                });
+                return;
+              }
+
+              setModalState(() {
+                isSearching = true;
+                hits = [];
+                statusMessage = null;
+                activeQuery = query;
+              });
+
+              try {
+                final results = await service.searchForText(
+                  query,
+                  entireBook: scope == _EpubSearchScope.book,
+                );
+                if (!modalContext.mounted) {
+                  return;
+                }
+                setModalState(() {
+                  isSearching = false;
+                  hits = results;
+                  statusMessage = results.isEmpty ? 'No matches found.' : null;
+                });
+              } catch (_) {
+                if (!modalContext.mounted) {
+                  return;
+                }
+                setModalState(() {
+                  isSearching = false;
+                  hits = [];
+                  statusMessage = 'Unable to complete search.';
+                });
+              }
+            }
+
+            Widget buildResults() {
+              if (isSearching) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (hits.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      statusMessage ?? 'No results yet.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                itemCount: hits.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final hit = hits[index];
+                  final percent = (hit.scrollRatio * 100)
+                      .clamp(0, 100)
+                      .toStringAsFixed(0);
+                  return ListTile(
+                    onTap: () {
+                      FocusScope.of(modalContext).unfocus();
+                      Navigator.of(modalContext).pop();
+                      service.goToChapter(
+                        hit.chapterIndex,
+                        scrollPosition: hit.scrollRatio,
+                      );
+                    },
+                    title: Text(hit.chapterTitle),
+                    subtitle: _buildHighlightedSnippet(
+                      modalContext,
+                      hit.snippet,
+                      activeQuery,
+                    ),
+                    trailing: Text('$percent%'),
+                  );
+                },
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.of(modalContext).size.height * 0.75,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Search EPUB',
+                                style: Theme.of(
+                                  modalContext,
+                                ).textTheme.titleLarge,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(modalContext).pop(),
+                              icon: const Icon(Icons.close),
+                              tooltip: 'Close',
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          controller: queryController,
+                          focusNode: focusNode,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => handleSearch(),
+                          decoration: const InputDecoration(
+                            labelText: 'Search query',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        child: Wrap(
+                          spacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Current chapter'),
+                              selected: scope == _EpubSearchScope.chapter,
+                              onSelected: (selected) {
+                                if (selected &&
+                                    scope != _EpubSearchScope.chapter) {
+                                  setModalState(() {
+                                    scope = _EpubSearchScope.chapter;
+                                  });
+                                  if (activeQuery.isNotEmpty) {
+                                    handleSearch();
+                                  }
+                                }
+                              },
+                            ),
+                            ChoiceChip(
+                              label: const Text('Entire book'),
+                              selected: scope == _EpubSearchScope.book,
+                              onSelected: (selected) {
+                                if (selected &&
+                                    scope != _EpubSearchScope.book) {
+                                  setModalState(() {
+                                    scope = _EpubSearchScope.book;
+                                  });
+                                  if (activeQuery.isNotEmpty) {
+                                    handleSearch();
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: isSearching ? null : handleSearch,
+                            icon: const Icon(Icons.search),
+                            label: const Text('Search'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(child: buildResults()),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    focusNode.dispose();
+    queryController.dispose();
+  }
+}
+
+Widget _buildHighlightedSnippet(
+  BuildContext context,
+  String snippet,
+  String query,
+) {
+  if (query.isEmpty) {
+    return Text(snippet, maxLines: 3, overflow: TextOverflow.ellipsis);
+  }
+
+  final theme = Theme.of(context);
+  final lowerSnippet = snippet.toLowerCase();
+  final lowerQuery = query.toLowerCase();
+  final spans = <TextSpan>[];
+  var searchStart = 0;
+
+  while (true) {
+    final matchIndex = lowerSnippet.indexOf(lowerQuery, searchStart);
+    if (matchIndex == -1) {
+      if (searchStart < snippet.length) {
+        spans.add(TextSpan(text: snippet.substring(searchStart)));
+      }
+      break;
+    }
+
+    if (matchIndex > searchStart) {
+      spans.add(TextSpan(text: snippet.substring(searchStart, matchIndex)));
+    }
+
+    final matchEnd = matchIndex + lowerQuery.length;
+    spans.add(
+      TextSpan(
+        text: snippet.substring(matchIndex, matchEnd),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+    searchStart = matchEnd;
+  }
+
+  return RichText(
+    maxLines: 3,
+    overflow: TextOverflow.ellipsis,
+    text: TextSpan(style: theme.textTheme.bodyMedium, children: spans),
   );
 }
 
@@ -391,6 +713,18 @@ String? _mapFontFamilyToSystem(String fontName) {
       return 'serif';
     case 'Sans-serif':
       return 'sans-serif';
+    case 'Monospace':
+      return 'monospace';
+    case 'Roboto':
+      return 'Roboto, sans-serif';
+    case 'Helvetica':
+      return '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    case 'Georgia':
+      return 'Georgia, serif';
+    case 'Times New Roman':
+      return '"Times New Roman", Times, serif';
+    case 'Courier New':
+      return '"Courier New", Courier, monospace';
     case 'Default':
     default:
       return null; // Use the default system font
@@ -399,7 +733,17 @@ String? _mapFontFamilyToSystem(String fontName) {
 
 void showFontSettingsDialog(BuildContext context, EpubReaderService service) {
   // Available font families that match the app's settings
-  final availableFonts = ['Default', 'Serif', 'Sans-serif'];
+  final availableFonts = [
+    'Default',
+    'Serif',
+    'Sans-serif',
+    'Monospace',
+    'Roboto',
+    'Helvetica',
+    'Georgia',
+    'Times New Roman',
+    'Courier New',
+  ];
 
   // Font size adjustment values
   double tempFontSize = service.fontSize;
@@ -516,6 +860,21 @@ void showFontSettingsDialog(BuildContext context, EpubReaderService service) {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await service.resetFontSettings();
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reset to Defaults'),
+                      ),
                     ),
                   ),
                 ],

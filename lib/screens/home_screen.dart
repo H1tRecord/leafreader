@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../services/home_service.dart';
 import '../utils/home_utils.dart';
 
+const String _logoAssetPath = 'assets/Leaf_Reader_Logo.png';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -40,7 +42,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       onSubmitted: (_) {},
                     )
-                  : const Text('LeafReader')),
+                  : Row(
+                      children: [
+                        Image.asset(
+                          _logoAssetPath,
+                          height: 32,
+                          width: 32,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.menu_book,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Leaf Reader',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    )),
         leading: homeService.isMultiSelectMode
             ? IconButton(
                 icon: const Icon(Icons.close),

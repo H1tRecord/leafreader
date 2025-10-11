@@ -1,6 +1,53 @@
 import 'package:flutter/material.dart';
 import '../utils/theme_provider.dart';
 
+Widget buildSettingsCard({
+  required BuildContext context,
+  required String title,
+  required List<Widget> children,
+  IconData? leadingIcon,
+  Color? accentColor,
+}) {
+  final theme = Theme.of(context);
+  final iconColor = accentColor ?? theme.colorScheme.primary;
+
+  return Card(
+    elevation: 2,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (leadingIcon != null)
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: iconColor.withOpacity(0.15),
+                  child: Icon(leadingIcon, color: iconColor),
+                ),
+              if (leadingIcon != null) const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    ),
+  );
+}
+
 Widget buildSectionHeader(BuildContext context, String title) {
   return Padding(
     padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -38,24 +85,32 @@ Widget buildDropdownTile({
   required List<String> items,
   required ValueChanged<String?> onChanged,
 }) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 16),
+  final theme = Theme.of(context);
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
         ),
-        DropdownButton<String>(
-          value: value,
-          items: items
-              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-              .toList(),
-          onChanged: onChanged,
+      ),
+      const SizedBox(height: 8),
+      DropdownButtonFormField<String>(
+        value: value,
+        items: items
+            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+            .toList(),
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
-      ],
-    ),
+      ),
+    ],
   );
 }
 
@@ -78,6 +133,27 @@ Widget buildListTile({
           : Colors.grey[600],
     ),
     onTap: onTap,
+  );
+}
+
+Widget buildStaticInfoTile({
+  required BuildContext context,
+  required String title,
+  required String subtitle,
+  required IconData icon,
+}) {
+  return ListTile(
+    leading: CircleAvatar(
+      backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+      child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+    ),
+    title: Text(
+      title,
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+    ),
+    subtitle: Text(subtitle),
   );
 }
 
