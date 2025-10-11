@@ -27,7 +27,7 @@ class PdfReaderScreen extends StatelessWidget {
           return WillPopScope(
             // Save annotations when navigating back
             onWillPop: () async {
-              await service.saveAnnotations();
+              await service.flushPendingChanges();
               return true;
             },
             child: Scaffold(

@@ -2,6 +2,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+// Access text markup rectangles for duplicate detection.
+import 'package:syncfusion_flutter_pdfviewer/src/annotation/text_markup.dart'
+    show
+        HighlightAnnotationExtension,
+        UnderlineAnnotationExtension,
+        StrikethroughAnnotationExtension,
+        SquigglyAnnotationExtension;
+
 import 'annotation_storage_service.dart';
 
 class PdfReaderService with ChangeNotifier {
@@ -19,6 +27,9 @@ class PdfReaderService with ChangeNotifier {
   String? _filePath;
   List<Annotation>? _loadedAnnotations;
   bool _annotationsModified = false;
+  bool _isRestoringAnnotations = false;
+  bool _isProcessingToggle = false;
+  Timer? _autoSaveTimer;
 
   String? get errorMessage => _errorMessage;
   bool get showScrollHead => _showScrollHead;
@@ -47,6 +58,7 @@ class PdfReaderService with ChangeNotifier {
   @override
   void dispose() {
     // Save annotations before disposing
+    _autoSaveTimer?.cancel();
     _saveAnnotationsIfNeeded();
 
     pdfViewerController.removeListener(_onControllerChanged);
@@ -68,18 +80,6 @@ class PdfReaderService with ChangeNotifier {
       _loadedAnnotations = await AnnotationStorageService.loadAnnotations(
         _filePath!,
       );
-
-      if (_loadedAnnotations != null && _loadedAnnotations!.isNotEmpty) {
-        // We need to add the annotations after the document is loaded
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final state = pdfViewerKey.currentState;
-          if (state != null) {
-            for (final annotation in _loadedAnnotations!) {
-              pdfViewerController.addAnnotation(annotation);
-            }
-          }
-        });
-      }
     } catch (e) {
       debugPrint('Error loading annotations: $e');
     }
@@ -89,15 +89,7 @@ class PdfReaderService with ChangeNotifier {
   Future<void> _saveAnnotationsIfNeeded() async {
     if (_filePath == null || !_annotationsModified) return;
 
-    try {
-      final annotations = pdfViewerController.getAnnotations();
-      if (annotations.isNotEmpty) {
-        await AnnotationStorageService.saveAnnotations(_filePath!, annotations);
-        _annotationsModified = false;
-      }
-    } catch (e) {
-      debugPrint('Error saving annotations: $e');
-    }
+    await _saveAnnotationsInternal();
   }
 
   /// Save annotations immediately, regardless of modification status.
@@ -105,8 +97,80 @@ class PdfReaderService with ChangeNotifier {
   Future<void> saveAnnotations() async {
     if (_filePath == null) return;
 
+    _autoSaveTimer?.cancel();
+    await _saveAnnotationsInternal();
+  }
+
+  /// Applies stored annotations once the document is available.
+  void handleDocumentLoaded() {
+    if (_loadedAnnotations == null || _loadedAnnotations!.isEmpty) {
+      return;
+    }
+
+    _isRestoringAnnotations = true;
     try {
-      final annotations = pdfViewerController.getAnnotations();
+      for (final annotation in _loadedAnnotations!) {
+        pdfViewerController.addAnnotation(annotation);
+      }
+    } finally {
+      _isRestoringAnnotations = false;
+      _loadedAnnotations = null;
+      _annotationsModified = false;
+    }
+  }
+
+  /// Reacts to newly added annotations.
+  void handleAnnotationAdded(Annotation annotation) {
+    if (_isRestoringAnnotations) {
+      return;
+    }
+
+    final List<Annotation> duplicates = _findDuplicateAnnotations(annotation);
+    if (duplicates.isNotEmpty) {
+      _isProcessingToggle = true;
+      try {
+        for (final duplicate in duplicates) {
+          pdfViewerController.removeAnnotation(duplicate);
+        }
+        pdfViewerController.removeAnnotation(annotation);
+      } finally {
+        _isProcessingToggle = false;
+      }
+      _markAnnotationsDirty();
+      _scheduleAutoSave();
+      return;
+    }
+
+    _markAnnotationsDirty();
+    _scheduleAutoSave();
+  }
+
+  /// Reacts to annotation removals.
+  void handleAnnotationRemoved(Annotation annotation) {
+    if (_isRestoringAnnotations) {
+      return;
+    }
+    if (_isProcessingToggle) {
+      return;
+    }
+
+    _markAnnotationsDirty();
+    _scheduleAutoSave();
+  }
+
+  /// Ensures any pending changes are saved immediately.
+  Future<void> flushPendingChanges() async {
+    _autoSaveTimer?.cancel();
+    await _saveAnnotationsIfNeeded();
+  }
+
+  Future<void> _saveAnnotationsInternal() async {
+    if (_filePath == null) {
+      return;
+    }
+
+    try {
+      final List<Annotation> annotations = pdfViewerController.getAnnotations();
       await AnnotationStorageService.saveAnnotations(_filePath!, annotations);
       _annotationsModified = false;
     } catch (e) {
@@ -114,9 +178,85 @@ class PdfReaderService with ChangeNotifier {
     }
   }
 
-  /// Should be called when annotations are added, modified, or removed.
-  void onAnnotationsChanged() {
+  void _markAnnotationsDirty() {
     _annotationsModified = true;
+  }
+
+  void _scheduleAutoSave() {
+    if (_filePath == null) {
+      return;
+    }
+
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+      _saveAnnotationsIfNeeded();
+    });
+  }
+
+  List<Annotation> _findDuplicateAnnotations(Annotation candidate) {
+    if (candidate is! HighlightAnnotation &&
+        candidate is! UnderlineAnnotation &&
+        candidate is! StrikethroughAnnotation &&
+        candidate is! SquigglyAnnotation) {
+      return const [];
+    }
+
+    final List<Rect> candidateRects = _extractAnnotationRects(candidate);
+    final List<Annotation> duplicates = [];
+    for (final Annotation annotation in pdfViewerController.getAnnotations()) {
+      if (identical(annotation, candidate)) {
+        continue;
+      }
+      if (annotation.runtimeType != candidate.runtimeType) {
+        continue;
+      }
+      if (annotation.pageNumber != candidate.pageNumber) {
+        continue;
+      }
+
+      final List<Rect> annotationRects = _extractAnnotationRects(annotation);
+      if (annotationRects.length != candidateRects.length) {
+        continue;
+      }
+
+      bool allMatch = true;
+      for (int i = 0; i < annotationRects.length; i++) {
+        if (!_rectsAlmostEqual(annotationRects[i], candidateRects[i])) {
+          allMatch = false;
+          break;
+        }
+      }
+
+      if (allMatch) {
+        duplicates.add(annotation);
+      }
+    }
+
+    return duplicates;
+  }
+
+  List<Rect> _extractAnnotationRects(Annotation annotation) {
+    if (annotation is HighlightAnnotation) {
+      return annotation.textMarkupRects;
+    }
+    if (annotation is UnderlineAnnotation) {
+      return annotation.textMarkupRects;
+    }
+    if (annotation is StrikethroughAnnotation) {
+      return annotation.textMarkupRects;
+    }
+    if (annotation is SquigglyAnnotation) {
+      return annotation.textMarkupRects;
+    }
+    return const <Rect>[Rect.zero];
+  }
+
+  bool _rectsAlmostEqual(Rect a, Rect b) {
+    const double tolerance = 0.5;
+    return (a.left - b.left).abs() <= tolerance &&
+        (a.top - b.top).abs() <= tolerance &&
+        (a.right - b.right).abs() <= tolerance &&
+        (a.bottom - b.bottom).abs() <= tolerance;
   }
 
   void onSearchTextChanged(String text) {

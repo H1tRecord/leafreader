@@ -63,19 +63,6 @@ PreferredSizeWidget buildAppBar(
         onPressed: () => service.toggleSearch(),
       ),
       IconButton(
-        icon: const Icon(Icons.save),
-        tooltip: 'Save annotations',
-        onPressed: () async {
-          await service.saveAnnotations();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Annotations saved'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        },
-      ),
-      IconButton(
         icon: service.pageLayoutMode == PdfPageLayoutMode.continuous
             ? const Icon(Icons.view_agenda_outlined)
             : const Icon(Icons.auto_stories),
@@ -178,20 +165,14 @@ Widget buildBody(
         onPageChanged: (PdfPageChangedDetails details) {
           // The listener in the service will handle the update
         },
-        // Listen to document loaded to mark annotations as modified
         onDocumentLoaded: (PdfDocumentLoadedDetails details) {
-          // We need to set up a listener for annotation changes
-          // Since we can't directly listen to annotation changes,
-          // we'll mark them as modified when the user interacts with text
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            service.pdfViewerController.addListener(() {
-              // This is a crude way to detect changes, but we don't have direct annotation change events
-              if (service.pdfViewerController.annotationMode !=
-                  PdfAnnotationMode.none) {
-                service.onAnnotationsChanged();
-              }
-            });
-          });
+          service.handleDocumentLoaded();
+        },
+        onAnnotationAdded: (Annotation annotation) {
+          service.handleAnnotationAdded(annotation);
+        },
+        onAnnotationRemoved: (Annotation annotation) {
+          service.handleAnnotationRemoved(annotation);
         },
       ),
       buildSearchResultsPanel(context, service),
