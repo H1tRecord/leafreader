@@ -176,6 +176,23 @@ class PrefsHelper {
     return prefs.getString(key);
   }
 
+  // Save EPUB scroll position (0.0 - 1.0)
+  static Future<void> saveEpubScrollPosition(
+    String filePath,
+    double scrollPosition,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'epub_scroll_${filePath.hashCode}';
+    await prefs.setDouble(key, scrollPosition);
+  }
+
+  // Get EPUB scroll position (0.0 - 1.0)
+  static Future<double?> getEpubScrollPosition(String filePath) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'epub_scroll_${filePath.hashCode}';
+    return prefs.getDouble(key);
+  }
+
   // Reset all app settings to defaults (for debugging)
   static Future<void> resetAllSettings() async {
     final prefs = await SharedPreferences.getInstance();

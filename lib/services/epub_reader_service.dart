@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:epubx/epubx.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/prefs_helper.dart';
 import '../utils/epub_cfi_util.dart';
@@ -14,11 +18,13 @@ class EpubReaderService with ChangeNotifier {
   double _scrollPosition = 0.0;
   String? _currentCfiPosition;
   PageController? _pageController; // Make nullable
+  Timer? _scrollSaveDebounce;
 
   // Font settings
   double? _fontSize;
   String? _fontFamily;
   bool _loadingFontSettings = true;
+  static final p.Context _pathContext = p.Context(style: p.Style.posix);
 
   // Getter with lazy initialization for the PageController
   PageController get pageController {
@@ -70,6 +76,8 @@ class EpubReaderService with ChangeNotifier {
     // Try to get the saved CFI position
     final savedCfi = await PrefsHelper.getEpubCfiPosition(filePath);
 
+    final storedScroll = await PrefsHelper.getEpubScrollPosition(filePath);
+
     if (savedCfi != null && savedCfi.isNotEmpty) {
       // Store the CFI string
       _currentCfiPosition = savedCfi;
@@ -87,7 +95,7 @@ class EpubReaderService with ChangeNotifier {
           chapterIndex,
         );
         if (scrollPos != null) {
-          _scrollPosition = scrollPos;
+          _scrollPosition = scrollPos.clamp(0.0, 1.0);
         }
       } else {
         // Fallback to simple chapter position
@@ -97,6 +105,10 @@ class EpubReaderService with ChangeNotifier {
       // Fallback to simple chapter position
       _currentChapterIndex = await _loadPosition();
     }
+
+    if (storedScroll != null) {
+      _scrollPosition = storedScroll.clamp(0.0, 1.0);
+    }
   }
 
   String getChapterHtmlContent(int chapterIndex) {
@@ -105,13 +117,46 @@ class EpubReaderService with ChangeNotifier {
         chapterIndex >= _book!.Chapters!.length) {
       return '';
     }
-    return _book!.Chapters![chapterIndex].HtmlContent ?? '';
+    final chapter = _book!.Chapters![chapterIndex];
+    final rawHtml = chapter.HtmlContent ?? '';
+    final withStyles = _inlineChapterStyles(rawHtml, chapter.ContentFileName);
+    return _inlineChapterImages(withStyles, chapter.ContentFileName);
+  }
+
+  Uint8List? resolveImageBytes(int chapterIndex, String? source) {
+    if (_book == null || source == null || source.isEmpty) {
+      return null;
+    }
+
+    final sanitizedSource = source.trim();
+    if (sanitizedSource.startsWith('http') ||
+        sanitizedSource.startsWith('https') ||
+        sanitizedSource.startsWith('data:')) {
+      return null; // Let flutter_html handle external & data URIs.
+    }
+
+    if (chapterIndex < 0 || chapterIndex >= (_book!.Chapters?.length ?? 0)) {
+      return null;
+    }
+
+    final chapter = _book!.Chapters![chapterIndex];
+    final resolvedPath = _resolveRelativeToChapter(
+      sanitizedSource,
+      chapter.ContentFileName,
+    );
+
+    final imageFile = _lookupImageFile(resolvedPath);
+    if (imageFile?.Content == null) {
+      return null;
+    }
+
+    return Uint8List.fromList(imageFile!.Content!);
   }
 
   void goToChapter(int index, {double scrollPosition = 0.0}) {
     if (index >= 0 && index < _book!.Chapters!.length) {
       _currentChapterIndex = index;
-      _scrollPosition = scrollPosition;
+      _scrollPosition = scrollPosition.clamp(0.0, 1.0);
 
       // Generate new CFI position
       _updateCfiPosition();
@@ -130,9 +175,11 @@ class EpubReaderService with ChangeNotifier {
   }
 
   void updateScrollPosition(double position) {
-    if (position >= 0.0 && position <= 1.0) {
-      _scrollPosition = position;
+    final clamped = position.clamp(0.0, 1.0);
+    if (clamped >= 0.0 && clamped <= 1.0) {
+      _scrollPosition = clamped;
       _updateCfiPosition();
+      _scheduleScrollSave();
       notifyListeners();
     }
   }
@@ -169,11 +216,16 @@ class EpubReaderService with ChangeNotifier {
   }
 
   Future<void> savePositionOnExit() async {
+    _scrollSaveDebounce?.cancel();
+
     // Save the current chapter index when exiting
     await _savePosition(_currentChapterIndex);
 
     // Also save the CFI position (more accurate)
     await _saveCfiPosition();
+
+    // Persist the current scroll ratio for reliable restoration
+    await PrefsHelper.saveEpubScrollPosition(filePath, _scrollPosition);
   }
 
   Future<void> _saveCfiPosition() async {
@@ -212,6 +264,162 @@ class EpubReaderService with ChangeNotifier {
   @override
   void dispose() {
     _pageController?.dispose();
+    _scrollSaveDebounce?.cancel();
     super.dispose();
+  }
+
+  void _scheduleScrollSave() {
+    _scrollSaveDebounce?.cancel();
+    _scrollSaveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      await PrefsHelper.saveEpubScrollPosition(filePath, _scrollPosition);
+    });
+  }
+
+  String _inlineChapterStyles(String html, String? chapterPath) {
+    final cssFiles = _book?.Content?.Css;
+    if (cssFiles == null || cssFiles.isEmpty) {
+      return html;
+    }
+
+    final linkRegex = RegExp(
+      r'<link[^>]*rel\s*=\s*"?stylesheet"?[^>]*>',
+      caseSensitive: false,
+    );
+
+    return html.replaceAllMapped(linkRegex, (match) {
+      final linkTag = match.group(0) ?? '';
+      final hrefMatch = RegExp(
+        "href\\s*=\\s*\"([^\"]+)\"|href\\s*=\\s*'([^']+)'",
+        caseSensitive: false,
+      ).firstMatch(linkTag);
+
+      final href = hrefMatch?.group(1) ?? hrefMatch?.group(2);
+      if (href == null || href.isEmpty) {
+        return linkTag; // Leave untouched if we can't parse it.
+      }
+
+      final resolved = _resolveRelativeToChapter(href, chapterPath);
+      final cssFile = _lookupCssFile(resolved);
+      if (cssFile?.Content == null) {
+        return linkTag;
+      }
+
+      return '<style>${cssFile!.Content}</style>';
+    });
+  }
+
+  String _inlineChapterImages(String html, String? chapterPath) {
+    if (_book?.Content?.Images == null || _book!.Content!.Images!.isEmpty) {
+      return html;
+    }
+
+    final imgRegex = RegExp(
+      "<img[^>]*src\\s*=\\s*\"([^\"]+)\"[^>]*>|<img[^>]*src\\s*=\\s*'([^']+)'[^>]*>",
+      caseSensitive: false,
+    );
+
+    return html.replaceAllMapped(imgRegex, (match) {
+      final tag = match.group(0) ?? '';
+      final src = match.group(1) ?? match.group(2);
+      if (src == null ||
+          src.isEmpty ||
+          src.startsWith('data:') ||
+          src.startsWith('http') ||
+          src.startsWith('https') ||
+          src.startsWith('about:')) {
+        return tag;
+      }
+
+      final resolved = _resolveRelativeToChapter(src, chapterPath);
+      final imageFile = _lookupImageFile(resolved);
+      if (imageFile?.Content == null || imageFile!.Content!.isEmpty) {
+        return tag;
+      }
+
+      final mime = imageFile.ContentMimeType ?? 'image/*';
+      final base64Data = base64Encode(imageFile.Content!);
+      final dataUri = 'src="data:$mime;base64,$base64Data"';
+
+      return tag.replaceFirst(
+        RegExp("src\\s*=\\s*\"[^\"]+\"|src\\s*=\\s*'[^']+'"),
+        dataUri,
+      );
+    });
+  }
+
+  EpubByteContentFile? _lookupImageFile(String normalizedPath) {
+    final images = _book?.Content?.Images;
+    if (images == null || images.isEmpty) {
+      return null;
+    }
+
+    final target = _normalizeContentPath(normalizedPath);
+
+    if (images.containsKey(target)) {
+      return images[target];
+    }
+
+    for (final entry in images.entries) {
+      final file = entry.value;
+      final candidates = <String?>[entry.key, file.FileName];
+      if (candidates.any(
+        (candidate) =>
+            candidate != null && _normalizeContentPath(candidate) == target,
+      )) {
+        return file;
+      }
+    }
+
+    return null;
+  }
+
+  EpubTextContentFile? _lookupCssFile(String normalizedPath) {
+    final cssFiles = _book?.Content?.Css;
+    if (cssFiles == null || cssFiles.isEmpty) {
+      return null;
+    }
+
+    final target = _normalizeContentPath(normalizedPath);
+
+    if (cssFiles.containsKey(target)) {
+      return cssFiles[target];
+    }
+
+    for (final entry in cssFiles.entries) {
+      final file = entry.value;
+      final candidates = <String?>[entry.key, file.FileName];
+      if (candidates.any(
+        (candidate) =>
+            candidate != null && _normalizeContentPath(candidate) == target,
+      )) {
+        return file;
+      }
+    }
+
+    return null;
+  }
+
+  String _resolveRelativeToChapter(String target, String? chapterPath) {
+    final sanitized = target.split('#').first.replaceAll('\\', '/');
+    if (sanitized.startsWith('http') ||
+        sanitized.startsWith('https') ||
+        sanitized.startsWith('data:') ||
+        sanitized.startsWith('about:')) {
+      return sanitized;
+    }
+
+    final baseDir = (chapterPath != null && chapterPath.isNotEmpty)
+        ? _pathContext.dirname(chapterPath)
+        : '';
+
+    final joined = baseDir.isEmpty
+        ? sanitized
+        : _pathContext.normalize(_pathContext.join(baseDir, sanitized));
+
+    return _normalizeContentPath(joined);
+  }
+
+  String _normalizeContentPath(String path) {
+    return _pathContext.normalize(path).replaceAll('\\', '/');
   }
 }
