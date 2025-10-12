@@ -749,7 +749,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
     }
 
-    final progressValue = _currentProgress.clamp(0.0, 1.0).toDouble();
     final chapterCount = widget.service.chapterCount;
     final hasPrevious = widget.chapterIndex > 0;
     final hasNext = chapterCount > 0 && widget.chapterIndex < chapterCount - 1;
@@ -780,16 +779,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LinearProgressIndicator(value: progressValue),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
         Expanded(
           child: Scrollbar(
             controller: _controller,
