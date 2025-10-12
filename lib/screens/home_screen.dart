@@ -5,6 +5,8 @@ import '../utils/home_utils.dart';
 
 const String _logoAssetPath = 'assets/Leaf_Reader_Logo.png';
 
+enum _HomeMenuAction { sortName, sortDate, sortType, settings }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -22,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 16,
         title: homeService.isMultiSelectMode
             ? Text('${homeService.selectedCount} selected')
             : (_isSearching
@@ -54,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Text(
                           'Leaf Reader',
                           style: Theme.of(context).textTheme.titleLarge
@@ -127,19 +130,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   tooltip: _isGridView ? 'List View' : 'Grid View',
                 ),
-                PopupMenuButton<SortOption>(
-                  icon: const Icon(Icons.sort),
-                  tooltip: 'Sort By',
-                  onSelected: (SortOption option) {
-                    homeService.setSortOption(option);
+                PopupMenuButton<_HomeMenuAction>(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'More Options',
+                  onSelected: (action) {
+                    switch (action) {
+                      case _HomeMenuAction.sortName:
+                        homeService.setSortOption(SortOption.name);
+                        break;
+                      case _HomeMenuAction.sortDate:
+                        homeService.setSortOption(SortOption.date);
+                        break;
+                      case _HomeMenuAction.sortType:
+                        homeService.setSortOption(SortOption.type);
+                        break;
+                      case _HomeMenuAction.settings:
+                        Navigator.of(context)
+                            .pushNamed('/settings')
+                            .then((_) => homeService.loadFiles());
+                        break;
+                    }
                   },
                   itemBuilder: (BuildContext context) =>
-                      <PopupMenuEntry<SortOption>>[
-                        PopupMenuItem<SortOption>(
-                          value: SortOption.name,
+                      <PopupMenuEntry<_HomeMenuAction>>[
+                        PopupMenuItem<_HomeMenuAction>(
+                          value: _HomeMenuAction.sortName,
                           child: Row(
                             children: [
-                              const Text('Name'),
+                              const Text('Sort by Name'),
                               const Spacer(),
                               if (homeService.sortOption == SortOption.name)
                                 Icon(
@@ -151,11 +169,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        PopupMenuItem<SortOption>(
-                          value: SortOption.date,
+                        PopupMenuItem<_HomeMenuAction>(
+                          value: _HomeMenuAction.sortDate,
                           child: Row(
                             children: [
-                              const Text('Date Modified'),
+                              const Text('Sort by Date'),
                               const Spacer(),
                               if (homeService.sortOption == SortOption.date)
                                 Icon(
@@ -167,11 +185,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        PopupMenuItem<SortOption>(
-                          value: SortOption.type,
+                        PopupMenuItem<_HomeMenuAction>(
+                          value: _HomeMenuAction.sortType,
                           child: Row(
                             children: [
-                              const Text('File Type'),
+                              const Text('Sort by File Type'),
                               const Spacer(),
                               if (homeService.sortOption == SortOption.type)
                                 Icon(
@@ -183,16 +201,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
+                        const PopupMenuDivider(),
+                        PopupMenuItem<_HomeMenuAction>(
+                          value: _HomeMenuAction.settings,
+                          child: Row(
+                            children: const [
+                              Icon(Icons.settings, size: 18),
+                              SizedBox(width: 12),
+                              Text('Settings'),
+                            ],
+                          ),
+                        ),
                       ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    Navigator.of(context)
-                        .pushNamed('/settings')
-                        .then((_) => homeService.loadFiles());
-                  },
-                  tooltip: 'Settings',
                 ),
               ],
       ),

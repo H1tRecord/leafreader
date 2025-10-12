@@ -27,6 +27,14 @@ class EpubSearchHit {
 }
 
 class EpubReaderService with ChangeNotifier {
+  static const List<String> _supportedFontFamilies = <String>[
+    'Default',
+    'Serif',
+    'Sans-serif',
+    'Monospace',
+    'Times New Roman',
+    'Courier New',
+  ];
   final String filePath;
   EpubBook? _book;
   bool _isLoading = true;
@@ -551,7 +559,7 @@ class EpubReaderService with ChangeNotifier {
   Future<void> _loadFontSettings() async {
     try {
       _fontSize = await PrefsHelper.getEpubFontSize();
-      _fontFamily = await PrefsHelper.getEpubFontFamily();
+      _fontFamily = _sanitizeFontFamily(await PrefsHelper.getEpubFontFamily());
       _loadingFontSettings = false;
       notifyListeners();
     } catch (e) {
@@ -569,8 +577,9 @@ class EpubReaderService with ChangeNotifier {
   }
 
   Future<void> updateFontFamily(String family) async {
-    _fontFamily = family;
-    await PrefsHelper.saveEpubFontFamily(family);
+    final sanitized = _sanitizeFontFamily(family);
+    _fontFamily = sanitized;
+    await PrefsHelper.saveEpubFontFamily(sanitized);
     notifyListeners();
   }
 
@@ -580,6 +589,10 @@ class EpubReaderService with ChangeNotifier {
     await PrefsHelper.saveEpubFontSize(_fontSize!);
     await PrefsHelper.saveEpubFontFamily(_fontFamily!);
     notifyListeners();
+  }
+
+  String _sanitizeFontFamily(String value) {
+    return _supportedFontFamilies.contains(value) ? value : 'Default';
   }
 
   @override

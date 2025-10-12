@@ -1,8 +1,64 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import '../services/epub_reader_service.dart';
+
+const List<String> _epubFontOptions = [
+  'Default',
+  'Serif',
+  'Sans-serif',
+  'Monospace',
+  'Times New Roman',
+  'Courier New',
+];
+
+List<String> _availableEpubFontOptions() => _epubFontOptions;
+
+String _ensureValidEpubFontSelection(String selection) {
+  final options = _availableEpubFontOptions();
+  return options.contains(selection) ? selection : 'Default';
+}
+
+TextStyle _epubPreviewTextStyle(BuildContext context, String selection) {
+  final base = Theme.of(context).textTheme.bodyMedium;
+  final resolved = _resolveEpubFont(selection);
+  final fontName = resolved.fontFamily;
+  final fallback = resolved.fallback;
+  return TextStyle(
+    fontSize: base?.fontSize,
+    fontWeight: base?.fontWeight,
+    color: Theme.of(context).colorScheme.onSurface,
+    fontFamily: fontName,
+    fontFamilyFallback: fallback,
+  );
+}
+
+({String? fontFamily, List<String>? fallback}) _resolveEpubFont(
+  String selection,
+) {
+  switch (selection) {
+    case 'Serif':
+      return (fontFamily: 'Times New Roman', fallback: const ['serif']);
+    case 'Sans-serif':
+      return (
+        fontFamily: 'sans-serif',
+        fallback: const ['Arial', 'sans-serif'],
+      );
+    case 'Monospace':
+      return (
+        fontFamily: 'monospace',
+        fallback: const ['Courier New', 'monospace'],
+      );
+    case 'Times New Roman':
+      return (fontFamily: 'Times New Roman', fallback: const ['serif']);
+    case 'Courier New':
+      return (fontFamily: 'Courier New', fallback: const ['monospace']);
+    default:
+      return (fontFamily: null, fallback: null);
+  }
+}
 
 PreferredSizeWidget buildAppBar(
   BuildContext context,
@@ -677,13 +733,16 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     required Color highlightBackground,
     required Color highlightForeground,
   }) {
-    final fontFamily = _mapFontFamilyToSystem(widget.service.fontFamily);
+    final resolvedFont = _resolveEpubFont(widget.service.fontFamily);
+    final fontFamily = resolvedFont.fontFamily;
+    final fontFallback = resolvedFont.fallback;
     final fontSize = widget.service.fontSize;
 
     return {
       'html': Style(backgroundColor: backgroundColor),
       'body': Style(
         fontFamily: fontFamily,
+        fontFamilyFallback: fontFallback,
         fontSize: FontSize(fontSize),
         color: textColor,
         backgroundColor: backgroundColor,
@@ -691,16 +750,19 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
       ),
       'p': Style(
         fontFamily: fontFamily,
+        fontFamilyFallback: fontFallback,
         fontSize: FontSize(fontSize),
         color: textColor,
       ),
       'div': Style(
         fontFamily: fontFamily,
+        fontFamilyFallback: fontFallback,
         fontSize: FontSize(fontSize),
         color: textColor,
       ),
       'span': Style(
         fontFamily: fontFamily,
+        fontFamilyFallback: fontFallback,
         fontSize: FontSize(fontSize),
         color: textColor,
       ),
@@ -1045,52 +1107,17 @@ bool _shouldSkipElement(dom.Element element) {
 }
 
 // Helper function to map font family names to system font families
-String? _mapFontFamilyToSystem(String fontName) {
-  switch (fontName) {
-    case 'Serif':
-      return 'serif';
-    case 'Sans-serif':
-      return 'sans-serif';
-    case 'Monospace':
-      return 'monospace';
-    case 'Roboto':
-      return 'Roboto, sans-serif';
-    case 'Helvetica':
-      return '"Helvetica Neue", Helvetica, Arial, sans-serif';
-    case 'Georgia':
-      return 'Georgia, serif';
-    case 'Times New Roman':
-      return '"Times New Roman", Times, serif';
-    case 'Courier New':
-      return '"Courier New", Courier, monospace';
-    case 'Default':
-    default:
-      return null; // Use the default system font
-  }
-}
-
 void showFontSettingsDialog(BuildContext context, EpubReaderService service) {
   // Available font families that match the app's settings
-  final availableFonts = [
-    'Default',
-    'Serif',
-    'Sans-serif',
-    'Monospace',
-    'Roboto',
-    'Helvetica',
-    'Georgia',
-    'Times New Roman',
-    'Courier New',
-  ];
+  final availableFonts = _availableEpubFontOptions();
 
   // Font size adjustment values
   double tempFontSize = service.fontSize;
-  String tempFontFamily = service.fontFamily;
+  String tempFontFamily = _ensureValidEpubFontSelection(service.fontFamily);
 
   // Make sure the current font family is in the available fonts list
   if (!availableFonts.contains(tempFontFamily)) {
-    tempFontFamily =
-        'Default'; // Fallback to default if current font isn't in the list
+    tempFontFamily = 'Default';
   }
 
   showModalBottomSheet(
@@ -1178,7 +1205,13 @@ void showFontSettingsDialog(BuildContext context, EpubReaderService service) {
                               .map(
                                 (family) => DropdownMenuItem(
                                   value: family,
-                                  child: Text(family),
+                                  child: Text(
+                                    family,
+                                    style: _epubPreviewTextStyle(
+                                      context,
+                                      family,
+                                    ),
+                                  ),
                                 ),
                               )
                               .toList(),
@@ -1197,6 +1230,14 @@ void showFontSettingsDialog(BuildContext context, EpubReaderService service) {
                             ),
                           ),
                         ),
+                        if (Platform.isAndroid)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Some fonts rely on device support. If a selection looks the same, the font is not available on this device.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
                       ],
                     ),
                   ),

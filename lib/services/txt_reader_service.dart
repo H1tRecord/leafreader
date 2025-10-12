@@ -5,21 +5,27 @@ import '../utils/prefs_helper.dart';
 
 enum FontFamily {
   default_('', const <String>[]),
-  serif('serif', const <String>['Times New Roman', 'Georgia', 'serif']),
-  sansSerif('sans-serif', const <String>['Helvetica', 'Arial', 'sans-serif']),
-  monospace('monospace', const <String>['Courier New', 'Courier', 'monospace']),
-  roboto('Roboto', const <String>['Helvetica', 'Arial', 'sans-serif']),
-  helvetica('Helvetica', const <String>['Arial', 'sans-serif']),
-  georgia('Georgia', const <String>['Times New Roman', 'serif']),
+  serif('serif', const <String>['Times New Roman', 'Georgia']),
+  sansSerif('sans-serif', const <String>['Arial', 'sans-serif']),
+  monospace('monospace', const <String>['Courier New', 'Courier']),
   timesNewRoman('Times New Roman', const <String>['Georgia', 'serif']),
   courierNew('Courier New', const <String>['Courier', 'monospace']);
 
-  final String name;
+  final String fontName;
   final List<String> fallback;
-  const FontFamily(this.name, this.fallback);
+  const FontFamily(this.fontName, this.fallback);
 }
 
 class TxtReaderService with ChangeNotifier {
+  static const List<String> _supportedFonts = <String>[
+    'Default',
+    'Serif',
+    'Sans-serif',
+    'Monospace',
+    'Times New Roman',
+    'Courier New',
+  ];
+
   String? _content;
   String? _errorMessage;
   bool _isLoading = true;
@@ -78,7 +84,7 @@ class TxtReaderService with ChangeNotifier {
 
   Future<void> _loadReaderSettings() async {
     _fontSize = await PrefsHelper.getTextFontSize();
-    _fontFamily = await PrefsHelper.getTextFontFamily();
+    _fontFamily = _sanitizeFontFamily(await PrefsHelper.getTextFontFamily());
     notifyListeners();
   }
 
@@ -177,8 +183,9 @@ class TxtReaderService with ChangeNotifier {
   }
 
   void setFontFamily(String family) {
-    _fontFamily = family;
-    PrefsHelper.saveTextFontFamily(family);
+    final sanitized = _sanitizeFontFamily(family);
+    _fontFamily = sanitized;
+    PrefsHelper.saveTextFontFamily(sanitized);
     notifyListeners();
   }
 
@@ -188,5 +195,9 @@ class TxtReaderService with ChangeNotifier {
     PrefsHelper.saveTextFontSize(_fontSize);
     PrefsHelper.saveTextFontFamily(_fontFamily);
     notifyListeners();
+  }
+
+  String _sanitizeFontFamily(String value) {
+    return _supportedFonts.contains(value) ? value : 'Default';
   }
 }

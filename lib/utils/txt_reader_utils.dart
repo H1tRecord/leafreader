@@ -1,5 +1,35 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/txt_reader_service.dart';
+
+const List<String> _fontOptions = [
+  'Default',
+  'Serif',
+  'Sans-serif',
+  'Monospace',
+  'Times New Roman',
+  'Courier New',
+];
+
+List<String> _availableFontOptions() => _fontOptions;
+
+String _ensureValidFontSelection(String currentSelection) {
+  final options = _availableFontOptions();
+  return options.contains(currentSelection) ? currentSelection : 'Default';
+}
+
+TextStyle _previewTextStyle(BuildContext context, FontFamily fontFamily) {
+  final baseStyle = Theme.of(context).textTheme.bodyMedium;
+  final previewFont = fontFamily.fontName.isEmpty ? null : fontFamily.fontName;
+  final fallback = fontFamily.fallback.isEmpty ? null : fontFamily.fallback;
+  return TextStyle(
+    fontSize: baseStyle?.fontSize,
+    fontWeight: baseStyle?.fontWeight,
+    color: Theme.of(context).colorScheme.onSurface,
+    fontFamily: previewFont,
+    fontFamilyFallback: fallback,
+  );
+}
 
 PreferredSizeWidget buildAppBar(
   BuildContext context,
@@ -165,12 +195,6 @@ FontFamily _resolveFontFamily(String selection) {
       return FontFamily.sansSerif;
     case 'Monospace':
       return FontFamily.monospace;
-    case 'Roboto':
-      return FontFamily.roboto;
-    case 'Helvetica':
-      return FontFamily.helvetica;
-    case 'Georgia':
-      return FontFamily.georgia;
     case 'Times New Roman':
       return FontFamily.timesNewRoman;
     case 'Courier New':
@@ -189,11 +213,14 @@ TextStyle _readerTextStyle(
   Color? backgroundColor,
 }) {
   final resolvedColor = color ?? Theme.of(context).textTheme.bodyLarge?.color;
-  final familyName = fontFamily.name.isEmpty ? null : fontFamily.name;
+  final familyName = fontFamily.fontName.isEmpty ? null : fontFamily.fontName;
+  final fallbackFamilies = fontFamily.fallback.isEmpty
+      ? null
+      : fontFamily.fallback;
   return TextStyle(
     fontSize: service.fontSize,
     fontFamily: familyName,
-    fontFamilyFallback: fontFamily.fallback,
+    fontFamilyFallback: fallbackFamilies,
     color: resolvedColor,
     fontWeight: fontWeight,
     backgroundColor: backgroundColor,
@@ -290,26 +317,20 @@ void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: service.fontFamily,
-                          items:
-                              const [
-                                    'Default',
-                                    'Serif',
-                                    'Sans-serif',
-                                    'Monospace',
-                                    'Roboto',
-                                    'Helvetica',
-                                    'Georgia',
-                                    'Times New Roman',
-                                    'Courier New',
-                                  ]
-                                  .map(
-                                    (family) => DropdownMenuItem(
-                                      value: family,
-                                      child: Text(family),
-                                    ),
-                                  )
-                                  .toList(),
+                          value: _ensureValidFontSelection(service.fontFamily),
+                          items: _availableFontOptions().map((family) {
+                            final previewFamily = _resolveFontFamily(family);
+                            return DropdownMenuItem(
+                              value: family,
+                              child: Text(
+                                family,
+                                style: _previewTextStyle(
+                                  context,
+                                  previewFamily,
+                                ),
+                              ),
+                            );
+                          }).toList(),
                           onChanged: (value) {
                             if (value != null) {
                               setModalState(() {
@@ -324,6 +345,14 @@ void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
                             ),
                           ),
                         ),
+                        if (Platform.isAndroid)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Some fonts rely on device support. If a selection looks the same, the font is not available on this device.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
                       ],
                     ),
                   ),

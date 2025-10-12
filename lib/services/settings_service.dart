@@ -1,10 +1,62 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+
 import '../utils/prefs_helper.dart';
 import '../utils/theme_provider.dart';
 
 class SettingsService {
+  static const List<String> _sharedFontOptions = <String>[
+    'Default',
+    'Serif',
+    'Sans-serif',
+    'Monospace',
+    'Times New Roman',
+    'Courier New',
+  ];
+
+  String _ensureValidFontSelection(String value) {
+    return _sharedFontOptions.contains(value) ? value : 'Default';
+  }
+
+  ({String? fontFamily, List<String>? fallback}) _resolveSettingsFont(
+    String selection,
+  ) {
+    switch (selection) {
+      case 'Serif':
+      case 'Times New Roman':
+        return (fontFamily: 'Times New Roman', fallback: const ['serif']);
+      case 'Sans-serif':
+        return (
+          fontFamily: 'sans-serif',
+          fallback: const ['Arial', 'sans-serif'],
+        );
+      case 'Monospace':
+        return (
+          fontFamily: 'monospace',
+          fallback: const ['Courier New', 'monospace'],
+        );
+      case 'Courier New':
+        return (fontFamily: 'Courier New', fallback: const ['monospace']);
+      default:
+        return (fontFamily: null, fallback: null);
+    }
+  }
+
+  TextStyle _settingsPreviewStyle(BuildContext context, String selection) {
+    final base = Theme.of(context).textTheme.bodyMedium;
+    final resolved = _resolveSettingsFont(selection);
+    return TextStyle(
+      fontSize: base?.fontSize,
+      fontWeight: base?.fontWeight,
+      color: Theme.of(context).colorScheme.onSurface,
+      fontFamily: resolved.fontFamily,
+      fontFamilyFallback: resolved.fallback,
+    );
+  }
+
   // Show confirmation dialog before resetting onboarding
   void showResetOnboardingConfirmation(BuildContext context) {
     showDialog(
@@ -121,11 +173,17 @@ class SettingsService {
   // Show EPUB reader settings dialog
   void showEpubReaderSettings(BuildContext context) async {
     double epubFontSize = await PrefsHelper.getEpubFontSize();
-    String epubFontFamily = await PrefsHelper.getEpubFontFamily();
+    String epubFontFamily = _ensureValidFontSelection(
+      await PrefsHelper.getEpubFontFamily(),
+    );
 
     if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
@@ -136,7 +194,6 @@ class SettingsService {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -155,8 +212,6 @@ class SettingsService {
                       ),
                     ),
                     const Divider(),
-
-                    // Font Size
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -187,8 +242,6 @@ class SettingsService {
                         ],
                       ),
                     ),
-
-                    // Font Family
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -204,25 +257,20 @@ class SettingsService {
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             value: epubFontFamily,
-                            items:
-                                const [
-                                      'Default',
-                                      'Serif',
-                                      'Sans-serif',
-                                      'Monospace',
-                                      'Roboto',
-                                      'Helvetica',
-                                      'Georgia',
-                                      'Times New Roman',
-                                      'Courier New',
-                                    ]
-                                    .map(
-                                      (family) => DropdownMenuItem(
-                                        value: family,
-                                        child: Text(family),
+                            items: _sharedFontOptions
+                                .map(
+                                  (family) => DropdownMenuItem(
+                                    value: family,
+                                    child: Text(
+                                      family,
+                                      style: _settingsPreviewStyle(
+                                        context,
+                                        family,
                                       ),
-                                    )
-                                    .toList(),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
                             onChanged: (value) {
                               if (value != null) {
                                 setModalState(() {
@@ -238,6 +286,14 @@ class SettingsService {
                               ),
                             ),
                           ),
+                          if (Platform.isAndroid)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'Some fonts rely on device support. If a selection looks the same, the font is not available on this device.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -248,21 +304,23 @@ class SettingsService {
           },
         );
       },
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
     );
   }
 
   // Show Text reader settings dialog
   void showTextReaderSettings(BuildContext context) async {
     double textFontSize = await PrefsHelper.getTextFontSize();
-    String textFontFamily = await PrefsHelper.getTextFontFamily();
+    String textFontFamily = _ensureValidFontSelection(
+      await PrefsHelper.getTextFontFamily(),
+    );
 
     if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
@@ -273,7 +331,6 @@ class SettingsService {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -292,8 +349,6 @@ class SettingsService {
                       ),
                     ),
                     const Divider(),
-
-                    // Font Size
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -324,8 +379,6 @@ class SettingsService {
                         ],
                       ),
                     ),
-
-                    // Font Family
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -341,25 +394,20 @@ class SettingsService {
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             value: textFontFamily,
-                            items:
-                                const [
-                                      'Default',
-                                      'Serif',
-                                      'Sans-serif',
-                                      'Monospace',
-                                      'Roboto',
-                                      'Helvetica',
-                                      'Georgia',
-                                      'Times New Roman',
-                                      'Courier New',
-                                    ]
-                                    .map(
-                                      (family) => DropdownMenuItem(
-                                        value: family,
-                                        child: Text(family),
+                            items: _sharedFontOptions
+                                .map(
+                                  (family) => DropdownMenuItem(
+                                    value: family,
+                                    child: Text(
+                                      family,
+                                      style: _settingsPreviewStyle(
+                                        context,
+                                        family,
                                       ),
-                                    )
-                                    .toList(),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
                             onChanged: (value) {
                               if (value != null) {
                                 setModalState(() {
@@ -375,6 +423,14 @@ class SettingsService {
                               ),
                             ),
                           ),
+                          if (Platform.isAndroid)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'Some fonts rely on device support. If a selection looks the same, the font is not available on this device.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -385,10 +441,6 @@ class SettingsService {
           },
         );
       },
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
     );
   }
 
