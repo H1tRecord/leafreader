@@ -32,7 +32,7 @@ class PdfReaderScreen extends StatelessWidget {
             },
             child: Scaffold(
               appBar: buildAppBar(context, service, fileName),
-              body: buildBody(context, service, filePath),
+              body: buildBody(context, service),
               bottomNavigationBar: service.showPageNavigation
                   ? buildBottomNavigationBar(context, service)
                   : null,

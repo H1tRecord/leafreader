@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -20,11 +21,14 @@ class PdfReaderService with ChangeNotifier {
   String? _errorMessage;
   bool _showScrollHead = true;
   bool _showPageNavigation = true;
-  PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.continuous;
+  final PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.continuous;
+  final PdfScrollDirection _scrollDirection = PdfScrollDirection.vertical;
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
   bool _isSearching = false;
   Timer? _debounce;
   String? _filePath;
+  Uint8List? _documentBytes;
+  bool _isLoadingDocument = false;
   List<Annotation>? _loadedAnnotations;
   bool _annotationsModified = false;
   bool _isRestoringAnnotations = false;
@@ -35,9 +39,12 @@ class PdfReaderService with ChangeNotifier {
   bool get showScrollHead => _showScrollHead;
   bool get showPageNavigation => _showPageNavigation;
   PdfPageLayoutMode get pageLayoutMode => _pageLayoutMode;
+  PdfScrollDirection get scrollDirection => _scrollDirection;
   PdfTextSearchResult get searchResult => _searchResult;
   bool get isSearching => _isSearching;
   bool get hasUnsavedAnnotations => _annotationsModified;
+  Uint8List? get documentBytes => _documentBytes;
+  bool get isLoadingDocument => _isLoadingDocument;
 
   PdfReaderService() {
     pdfViewerController.addListener(_onControllerChanged);
@@ -47,8 +54,31 @@ class PdfReaderService with ChangeNotifier {
   /// This should be called when the PDF is opened.
   Future<void> initWithFile(String filePath) async {
     _filePath = filePath;
-    // Load saved annotations
-    await _loadAnnotations();
+    _isLoadingDocument = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final File file = File(filePath);
+      final bool exists = await file.exists();
+      if (!exists) {
+        _errorMessage = 'PDF file not found.';
+        _documentBytes = null;
+        return;
+      }
+
+      _documentBytes = await file.readAsBytes();
+
+      // Load saved annotations after the document bytes are ready.
+      await _loadAnnotations();
+    } catch (e) {
+      debugPrint('Error loading PDF document: $e');
+      _errorMessage = 'Unable to load PDF document.';
+      _documentBytes = null;
+    } finally {
+      _isLoadingDocument = false;
+      notifyListeners();
+    }
   }
 
   void _onControllerChanged() {
@@ -341,10 +371,22 @@ class PdfReaderService with ChangeNotifier {
     notifyListeners();
   }
 
-  void togglePageLayoutMode() {
-    _pageLayoutMode = _pageLayoutMode == PdfPageLayoutMode.continuous
-        ? PdfPageLayoutMode.single
-        : PdfPageLayoutMode.continuous;
-    notifyListeners();
+  void goToPreviousPage() {
+    final int targetPage = pdfViewerController.pageNumber - 1;
+    if (targetPage >= 1) {
+      pdfViewerController.jumpToPage(targetPage);
+    }
+  }
+
+  void goToNextPage() {
+    final int totalPages = pdfViewerController.pageCount;
+    if (totalPages == 0) {
+      return;
+    }
+
+    final int targetPage = pdfViewerController.pageNumber + 1;
+    if (targetPage <= totalPages) {
+      pdfViewerController.jumpToPage(targetPage);
+    }
   }
 }

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -62,13 +61,6 @@ PreferredSizeWidget buildAppBar(
         tooltip: 'Search PDF',
         onPressed: () => service.toggleSearch(),
       ),
-      IconButton(
-        icon: service.pageLayoutMode == PdfPageLayoutMode.continuous
-            ? const Icon(Icons.view_agenda_outlined)
-            : const Icon(Icons.auto_stories),
-        tooltip: 'Toggle page layout',
-        onPressed: () => service.togglePageLayoutMode(),
-      ),
       PopupMenuButton<String>(
         tooltip: 'More options',
         onSelected: (value) => service.handleMenuSelection(value),
@@ -119,11 +111,7 @@ PreferredSizeWidget buildAppBar(
   );
 }
 
-Widget buildBody(
-  BuildContext context,
-  PdfReaderService service,
-  String filePath,
-) {
+Widget buildBody(BuildContext context, PdfReaderService service) {
   if (service.errorMessage != null) {
     return Center(
       child: Padding(
@@ -145,16 +133,22 @@ Widget buildBody(
     );
   }
 
+  if (service.documentBytes == null) {
+    // Document is still loading into memory; show a lightweight indicator.
+    return const Center(child: CircularProgressIndicator.adaptive());
+  }
+
   return Stack(
     children: [
-      SfPdfViewer.file(
-        File(filePath),
+      SfPdfViewer.memory(
+        service.documentBytes!,
         key: service.pdfViewerKey,
         controller: service.pdfViewerController,
         canShowScrollHead: service.showScrollHead,
         canShowScrollStatus: true,
         canShowPaginationDialog: true,
         pageLayoutMode: service.pageLayoutMode,
+        scrollDirection: service.scrollDirection,
         enableTextSelection: true,
         onTextSelectionChanged: (PdfTextSelectionChangedDetails details) {
           if (details.selectedText != null &&
@@ -197,7 +191,7 @@ Widget buildBottomNavigationBar(
             icon: const Icon(Icons.keyboard_arrow_left),
             tooltip: 'Previous page',
             onPressed: currentPage > 1
-                ? () => service.pdfViewerController.previousPage()
+                ? () => service.goToPreviousPage()
                 : null,
           ),
           GestureDetector(
@@ -224,7 +218,7 @@ Widget buildBottomNavigationBar(
             icon: const Icon(Icons.keyboard_arrow_right),
             tooltip: 'Next page',
             onPressed: currentPage < totalPages
-                ? () => service.pdfViewerController.nextPage()
+                ? () => service.goToNextPage()
                 : null,
           ),
         ],
