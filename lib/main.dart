@@ -1,12 +1,15 @@
-import 'package:leafreader/services/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'services/android_intent_service.dart';
+import 'package:leafreader/services/home_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'utils/theme_provider.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   // Ensure Flutter is initialized
@@ -26,8 +29,21 @@ void main() async {
   );
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
+
+  @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AndroidIntentService.instance.initialize(navigatorKey);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +58,7 @@ class MainApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'LeafReader',
+      navigatorKey: navigatorKey,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: themeProvider.accentColor,

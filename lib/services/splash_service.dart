@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import '../utils/prefs_helper.dart';
+import 'android_intent_service.dart';
 
 class SplashService with ChangeNotifier {
   Future<void> checkFirstTimeUser(BuildContext context) async {
+    if (AndroidIntentService.consumeSplashNavigationGuard()) {
+      return;
+    }
+
     // Check if user has completed onboarding
     bool onboardingCompleted = await PrefsHelper.isOnboardingCompleted();
 
