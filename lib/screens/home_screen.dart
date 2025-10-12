@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       controller: homeService.searchController,
                       autofocus: true,
                       decoration: InputDecoration(
-                        hintText: 'Search books...',
+                        hintText: 'Search files...',
                         border: InputBorder.none,
                         hintStyle: TextStyle(
                           color: Theme.of(
