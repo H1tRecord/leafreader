@@ -596,10 +596,10 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
   }
 
   void _syncSectionKeys(List<ChapterSectionViewModel> sections) {
-    final ids = sections.map((section) => section.sectionIndex).toSet();
+    final ids = sections.map((section) => section.scrollKey).toSet();
     _sectionKeys.removeWhere((key, _) => !ids.contains(key));
     for (final section in sections) {
-      _sectionKeys.putIfAbsent(section.sectionIndex, () => GlobalKey());
+      _sectionKeys.putIfAbsent(section.scrollKey, () => GlobalKey());
     }
   }
 
@@ -624,7 +624,20 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     return sections.length - 1;
   }
 
-  void _handlePrevious(List<ChapterSectionViewModel> sections) {
+  void _handlePrevious(
+    List<ChapterSectionViewModel> sections,
+    int currentSectionIndex,
+  ) {
+    if (currentSectionIndex > 0 && currentSectionIndex <= sections.length - 1) {
+      final target = sections[currentSectionIndex - 1];
+      widget.service.navigateToSection(
+        widget.chapterIndex,
+        sectionIndex: target.sectionIndex,
+        scrollPosition: target.startRatio,
+      );
+      return;
+    }
+
     if (widget.chapterIndex <= 0) {
       return;
     }
@@ -632,7 +645,20 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     widget.service.goToChapter(widget.chapterIndex - 1);
   }
 
-  void _handleNext(List<ChapterSectionViewModel> sections) {
+  void _handleNext(
+    List<ChapterSectionViewModel> sections,
+    int currentSectionIndex,
+  ) {
+    if (currentSectionIndex >= 0 && currentSectionIndex < sections.length - 1) {
+      final target = sections[currentSectionIndex + 1];
+      widget.service.navigateToSection(
+        widget.chapterIndex,
+        sectionIndex: target.sectionIndex,
+        scrollPosition: target.startRatio,
+      );
+      return;
+    }
+
     final totalChapters = widget.service.chapterCount;
     if (widget.chapterIndex >= totalChapters - 1) {
       return;
@@ -813,13 +839,15 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
                   controller: _controller,
                   physics: const ClampingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  cacheExtent:
+                      400.0, // Keep pre-built content small to avoid frame drops.
                   itemCount: sections.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 16),
                   itemBuilder: (context, index) {
                     final section = sections[index];
                     return Padding(
-                      key: _sectionKeys[section.sectionIndex],
+                      key: _sectionKeys[section.scrollKey],
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: _SectionHtmlView(
                         section: section,
@@ -843,7 +871,7 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: enablePrevious
-                        ? () => _handlePrevious(sections)
+                        ? () => _handlePrevious(sections, currentSectionIndex)
                         : null,
                     icon: const Icon(Icons.chevron_left),
                     label: const Text('Previous'),
@@ -852,7 +880,9 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: enableNext ? () => _handleNext(sections) : null,
+                    onPressed: enableNext
+                        ? () => _handleNext(sections, currentSectionIndex)
+                        : null,
                     icon: const Icon(Icons.chevron_right),
                     label: const Text('Next'),
                   ),

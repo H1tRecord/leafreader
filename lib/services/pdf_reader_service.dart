@@ -34,6 +34,9 @@ class PdfReaderService with ChangeNotifier {
   bool _isRestoringAnnotations = false;
   bool _isProcessingToggle = false;
   Timer? _autoSaveTimer;
+  int? _lastReportedPageNumber;
+  int? _lastReportedPageCount;
+  double? _lastReportedZoomLevel;
 
   String? get errorMessage => _errorMessage;
   bool get showScrollHead => _showScrollHead;
@@ -82,7 +85,22 @@ class PdfReaderService with ChangeNotifier {
   }
 
   void _onControllerChanged() {
-    notifyListeners();
+    final int pageNumber = pdfViewerController.pageNumber;
+    final int pageCount = pdfViewerController.pageCount;
+    final double zoomLevel = pdfViewerController.zoomLevel;
+
+    final bool pageChanged = pageNumber != _lastReportedPageNumber;
+    final bool countChanged = pageCount != _lastReportedPageCount;
+    final bool zoomChanged = _lastReportedZoomLevel == null
+        ? false
+        : (zoomLevel - _lastReportedZoomLevel!).abs() >= 0.01;
+
+    if (pageChanged || countChanged || zoomChanged) {
+      _lastReportedPageNumber = pageNumber;
+      _lastReportedPageCount = pageCount;
+      _lastReportedZoomLevel = zoomLevel;
+      notifyListeners();
+    }
   }
 
   @override
@@ -134,6 +152,7 @@ class PdfReaderService with ChangeNotifier {
   /// Applies stored annotations once the document is available.
   void handleDocumentLoaded() {
     if (_loadedAnnotations == null || _loadedAnnotations!.isEmpty) {
+      _captureControllerSnapshot();
       return;
     }
 
@@ -147,6 +166,7 @@ class PdfReaderService with ChangeNotifier {
       _loadedAnnotations = null;
       _annotationsModified = false;
     }
+    _captureControllerSnapshot();
   }
 
   /// Reacts to newly added annotations.
@@ -173,6 +193,7 @@ class PdfReaderService with ChangeNotifier {
 
     _markAnnotationsDirty();
     _scheduleAutoSave();
+    _captureControllerSnapshot();
   }
 
   /// Reacts to annotation removals.
@@ -186,6 +207,7 @@ class PdfReaderService with ChangeNotifier {
 
     _markAnnotationsDirty();
     _scheduleAutoSave();
+    _captureControllerSnapshot();
   }
 
   /// Ensures any pending changes are saved immediately.
@@ -375,6 +397,7 @@ class PdfReaderService with ChangeNotifier {
     final int targetPage = pdfViewerController.pageNumber - 1;
     if (targetPage >= 1) {
       pdfViewerController.jumpToPage(targetPage);
+      _captureControllerSnapshot();
     }
   }
 
@@ -387,6 +410,13 @@ class PdfReaderService with ChangeNotifier {
     final int targetPage = pdfViewerController.pageNumber + 1;
     if (targetPage <= totalPages) {
       pdfViewerController.jumpToPage(targetPage);
+      _captureControllerSnapshot();
     }
+  }
+
+  void _captureControllerSnapshot() {
+    _lastReportedPageNumber = pdfViewerController.pageNumber;
+    _lastReportedPageCount = pdfViewerController.pageCount;
+    _lastReportedZoomLevel = pdfViewerController.zoomLevel;
   }
 }

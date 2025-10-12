@@ -42,6 +42,7 @@ class EpubReaderService with ChangeNotifier {
   String? _activeSearchHighlight;
   final List<_ChapterEntry> _chapterEntries = <_ChapterEntry>[];
   final Map<int, List<_ChapterSection>> _chapterSectionsCache = {};
+  final Map<int, List<_SectionFragment>> _sectionFragmentsCache = {};
 
   // Font settings
   double? _fontSize;
@@ -85,6 +86,7 @@ class EpubReaderService with ChangeNotifier {
       final bytes = await file.readAsBytes();
       _book = await EpubReader.readBook(bytes);
       _chapterSectionsCache.clear();
+      _sectionFragmentsCache.clear();
       _chapterEntries.clear();
       _activeSearchHighlight = null;
       _rebuildChapterEntries();
@@ -596,6 +598,7 @@ class EpubReaderService with ChangeNotifier {
 
   void _rebuildChapterEntries() {
     _chapterEntries.clear();
+    _sectionFragmentsCache.clear();
     if (_book == null) {
       return;
     }
@@ -847,14 +850,174 @@ class EpubReaderService with ChangeNotifier {
       return const [];
     }
 
-    return <ChapterSectionViewModel>[
-      ChapterSectionViewModel(
-        html: section.html,
-        depth: section.depth,
-        sectionIndex: section.sectionIndex,
-        startRatio: 0.0,
-      ),
-    ];
+    final fragments = _sectionFragmentsCache.putIfAbsent(
+      section.sectionIndex,
+      () => _splitSectionIntoFragments(section),
+    );
+
+    return fragments
+        .map(
+          (fragment) => ChapterSectionViewModel(
+            html: fragment.html,
+            depth: section.depth,
+            sectionIndex: section.sectionIndex,
+            startRatio: fragment.startRatio,
+            scrollKey: fragment.scrollKey,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<_SectionFragment> _splitSectionIntoFragments(_ChapterSection section) {
+    // Break large HTML blobs into smaller fragments to reduce build load.
+    const targetPlainChars = 2000;
+    const maxPlainChars = 3200;
+    final totalPlainChars = section.plainText.length;
+
+    if (totalPlainChars <= maxPlainChars) {
+      return <_SectionFragment>[
+        _SectionFragment(
+          html: section.html,
+          startRatio: 0.0,
+          scrollKey: section.sectionIndex,
+        ),
+      ];
+    }
+
+    final segments = _splitHtmlIntoSegments(section.html);
+    if (segments.length <= 1) {
+      return <_SectionFragment>[
+        _SectionFragment(
+          html: section.html,
+          startRatio: 0.0,
+          scrollKey: section.sectionIndex,
+        ),
+      ];
+    }
+
+    final fragments = <_SectionFragment>[];
+    var chunkBuffer = StringBuffer();
+    var chunkPlainChars = 0;
+    var cumulativePlainChars = 0;
+    var chunkIndex = 0;
+    var hasChunkContent = false;
+
+    void flushChunk() {
+      if (!hasChunkContent) {
+        return;
+      }
+
+      final chunkHtml = chunkBuffer.toString();
+      final startRatio = totalPlainChars == 0
+          ? 0.0
+          : (cumulativePlainChars / totalPlainChars).clamp(0.0, 1.0);
+      final scrollKey = chunkIndex == 0
+          ? section.sectionIndex
+          : section.sectionIndex * 1000 + chunkIndex;
+
+      fragments.add(
+        _SectionFragment(
+          html: chunkHtml,
+          startRatio: startRatio,
+          scrollKey: scrollKey,
+        ),
+      );
+
+      cumulativePlainChars += chunkPlainChars;
+      chunkBuffer = StringBuffer();
+      chunkPlainChars = 0;
+      chunkIndex += 1;
+      hasChunkContent = false;
+    }
+
+    for (final segment in segments) {
+      final segmentPlain = segment.plainLength;
+
+      if (chunkPlainChars > 0 &&
+          chunkPlainChars + segmentPlain > maxPlainChars &&
+          chunkBuffer.isNotEmpty) {
+        flushChunk();
+      }
+
+      chunkBuffer.write(segment.html);
+      chunkPlainChars += segmentPlain;
+      hasChunkContent = true;
+
+      if (chunkPlainChars >= targetPlainChars) {
+        flushChunk();
+      }
+    }
+
+    flushChunk();
+
+    if (fragments.isEmpty || fragments.length == 1) {
+      return <_SectionFragment>[
+        _SectionFragment(
+          html: section.html,
+          startRatio: 0.0,
+          scrollKey: section.sectionIndex,
+        ),
+      ];
+    }
+
+    return fragments;
+  }
+
+  List<_HtmlSegment> _splitHtmlIntoSegments(String html) {
+    final content = html.trim();
+    if (content.isEmpty) {
+      return <_HtmlSegment>[];
+    }
+
+    final segments = <_HtmlSegment>[];
+    final regex = RegExp(
+      r'(</(p|div|h[1-6]|li|section|article|blockquote|pre)>|<br\s*/?>)',
+      caseSensitive: false,
+    );
+
+    var lastIndex = 0;
+    for (final match in regex.allMatches(content)) {
+      final end = match.end;
+      if (end <= lastIndex) {
+        continue;
+      }
+
+      final slice = content.substring(lastIndex, end);
+      final trimmedSlice = slice.trim();
+      if (trimmedSlice.isNotEmpty) {
+        segments.add(
+          _HtmlSegment(
+            html: slice,
+            plainLength: _plainTextFromHtml(trimmedSlice).length,
+          ),
+        );
+      }
+      lastIndex = end;
+    }
+
+    if (lastIndex < content.length) {
+      final tail = content.substring(lastIndex);
+      final trimmedTail = tail.trim();
+      if (trimmedTail.isNotEmpty) {
+        segments.add(
+          _HtmlSegment(
+            html: tail,
+            plainLength: _plainTextFromHtml(trimmedTail).length,
+          ),
+        );
+      }
+    }
+
+    if (segments.isEmpty) {
+      segments.add(
+        _HtmlSegment(
+          html: content,
+          plainLength: _plainTextFromHtml(content).length,
+        ),
+      );
+    }
+
+    return segments;
   }
 
   String _inlineChapterStyles(String html, String? chapterPath) {
@@ -1085,18 +1248,39 @@ class _ChapterSection {
   final String plainText;
 }
 
+class _SectionFragment {
+  const _SectionFragment({
+    required this.html,
+    required this.startRatio,
+    required this.scrollKey,
+  });
+
+  final String html;
+  final double startRatio;
+  final int scrollKey;
+}
+
+class _HtmlSegment {
+  const _HtmlSegment({required this.html, required this.plainLength});
+
+  final String html;
+  final int plainLength;
+}
+
 class ChapterSectionViewModel {
   const ChapterSectionViewModel({
     required this.html,
     required this.depth,
     required this.sectionIndex,
     required this.startRatio,
+    required this.scrollKey,
   });
 
   final String html;
   final int depth;
   final int sectionIndex;
   final double startRatio;
+  final int scrollKey;
 }
 
 class ChapterNavItem {
