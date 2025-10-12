@@ -90,6 +90,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   tooltip: 'Inverse Selection',
                 ),
+                // Show rename button only when exactly one file is selected
+                if (homeService.selectedCount == 1)
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () => homeService.renameSelectedFile(context),
+                    tooltip: 'Rename Selected',
+                  ),
                 IconButton(
                   icon: const Icon(Icons.delete),
                   onPressed: homeService.selectedCount > 0

@@ -377,9 +377,24 @@ Widget buildListView(BuildContext context, HomeService homeService) {
             onSelected: (value) {
               if (value == 'delete') {
                 homeService.deleteFile(context, file);
+              } else if (value == 'rename') {
+                homeService.renameFile(context, file);
               }
             },
             itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'rename',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.edit,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Rename'),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -584,9 +599,24 @@ Widget buildGridView(BuildContext context, HomeService homeService) {
                   onSelected: (value) {
                     if (value == 'delete') {
                       homeService.deleteFile(context, file);
+                    } else if (value == 'rename') {
+                      homeService.renameFile(context, file);
                     }
                   },
                   itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'rename',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.edit,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Rename'),
+                        ],
+                      ),
+                    ),
                     PopupMenuItem(
                       value: 'delete',
                       child: Row(

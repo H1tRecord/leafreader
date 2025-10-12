@@ -346,6 +346,27 @@ class HomeService with ChangeNotifier {
     }
   }
 
+  Future<void> renameSelectedFile(BuildContext context) async {
+    // Only allow renaming a single selected file
+    if (_selectedFiles.length != 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select only one file to rename')),
+      );
+      return;
+    }
+
+    // Get the selected file
+    final file = _selectedFiles.first;
+
+    // Call the renameFile method
+    await renameFile(context, file);
+
+    // Exit multi-select mode after renaming
+    _isMultiSelectMode = false;
+    _selectedFiles.clear();
+    notifyListeners();
+  }
+
   Future<void> deleteFile(BuildContext context, FileSystemEntity file) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -389,6 +410,116 @@ class HomeService with ChangeNotifier {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Error deleting file: $e')));
+        }
+      }
+    }
+  }
+
+  Future<void> renameFile(BuildContext context, FileSystemEntity file) async {
+    final fileName = path.basename(file.path);
+    final extension = path.extension(file.path).toLowerCase();
+    final nameWithoutExtension = path.basenameWithoutExtension(file.path);
+
+    final controller = TextEditingController(text: nameWithoutExtension);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename File'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Current name: $fileName'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'New name',
+                hintText: 'Enter new file name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('File name cannot be empty')),
+                );
+                return;
+              }
+              Navigator.of(context).pop(value);
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null &&
+        newName.isNotEmpty &&
+        newName != nameWithoutExtension) {
+      try {
+        final oldFile = File(file.path);
+        final oldDir = path.dirname(file.path);
+        final newPath = path.join(oldDir, '$newName$extension');
+
+        // Check if a file with that name already exists
+        if (await File(newPath).exists()) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('A file with that name already exists'),
+              ),
+            );
+          }
+          return;
+        }
+
+        // Rename the file
+        await oldFile.rename(newPath);
+
+        // Update our lists
+        final index = _files.indexOf(file);
+        if (index != -1) {
+          final newFile = File(newPath);
+          _files[index] = newFile;
+        }
+
+        final filteredIndex = _filteredFiles.indexOf(file);
+        if (filteredIndex != -1) {
+          final newFile = File(newPath);
+          _filteredFiles[filteredIndex] = newFile;
+        }
+
+        // If the file was selected, update the selection
+        if (_selectedFiles.contains(file)) {
+          _selectedFiles.remove(file);
+          _selectedFiles.add(File(newPath));
+        }
+
+        notifyListeners();
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Renamed "$fileName" to "$newName$extension"'),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error renaming file: $e')));
         }
       }
     }
