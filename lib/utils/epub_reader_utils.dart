@@ -93,7 +93,7 @@ Widget buildBody(BuildContext context, EpubReaderService service) {
 
   return PageView.builder(
     controller: service.pageController,
-    itemCount: service.book?.Chapters?.length ?? 0,
+    itemCount: service.chapterCount,
     itemBuilder: (context, index) {
       return _EpubChapterView(service: service, chapterIndex: index);
     },
@@ -188,7 +188,7 @@ Future<void> showSearchDialog(
 
             return ListView.separated(
               itemCount: hits.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (context, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final hit = hits[index];
                 final percent = (hit.scrollRatio * 100)
@@ -413,10 +413,7 @@ void showChaptersDialog(BuildContext context, EpubReaderService service) {
                           : Theme.of(context).textTheme.bodyMedium,
                     ),
                     onTap: () {
-                      service.navigateToSection(
-                        item.chapterIndex,
-                        sectionIndex: item.sectionIndex,
-                      );
+                      service.goToChapter(item.chapterIndex);
                       Navigator.pop(context);
                     },
                   );
@@ -628,150 +625,20 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
   }
 
   void _handlePrevious(List<ChapterSectionViewModel> sections) {
-    final currentIndex = _resolveCurrentSectionIndex(sections);
-    if (currentIndex > 0) {
-      final target = sections[currentIndex - 1];
-      widget.service.navigateToSection(
-        widget.chapterIndex,
-        sectionIndex: target.sectionIndex,
-      );
-      return;
-    }
-
     if (widget.chapterIndex <= 0) {
       return;
     }
 
-    final previousChapterIndex = widget.chapterIndex - 1;
-    final previousSections = widget.service.getRenderedSections(
-      previousChapterIndex,
-    );
-    if (previousSections.isNotEmpty) {
-      final target = previousSections.last;
-      widget.service.navigateToSection(
-        previousChapterIndex,
-        sectionIndex: target.sectionIndex,
-      );
-    } else {
-      widget.service.goToChapter(previousChapterIndex);
-    }
+    widget.service.goToChapter(widget.chapterIndex - 1);
   }
 
   void _handleNext(List<ChapterSectionViewModel> sections) {
-    final currentIndex = _resolveCurrentSectionIndex(sections);
-    if (currentIndex >= 0 && currentIndex < sections.length - 1) {
-      final target = sections[currentIndex + 1];
-      widget.service.navigateToSection(
-        widget.chapterIndex,
-        sectionIndex: target.sectionIndex,
-      );
-      return;
-    }
-
-    final totalChapters = widget.service.book?.Chapters?.length ?? 0;
+    final totalChapters = widget.service.chapterCount;
     if (widget.chapterIndex >= totalChapters - 1) {
       return;
     }
 
-    final nextChapterIndex = widget.chapterIndex + 1;
-    final nextSections = widget.service.getRenderedSections(nextChapterIndex);
-    if (nextSections.isNotEmpty) {
-      final target = nextSections.first;
-      widget.service.navigateToSection(
-        nextChapterIndex,
-        sectionIndex: target.sectionIndex,
-      );
-    } else {
-      widget.service.goToChapter(nextChapterIndex);
-    }
-  }
-
-  String _applyHighlight(String html, String? term) {
-    final query = term?.trim();
-    if (query == null || query.isEmpty) {
-      return html;
-    }
-
-    try {
-      final fragment = html_parser.parseFragment(html);
-      _stripExistingHighlights(fragment.nodes);
-      final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
-      _applyHighlightToNodes(fragment.nodes, pattern);
-      return fragment.outerHtml;
-    } catch (_) {
-      return html;
-    }
-  }
-
-  void _stripExistingHighlights(List<dom.Node> nodes) {
-    for (final node in List<dom.Node>.from(nodes)) {
-      if (node is dom.Element) {
-        final name = node.localName?.toLowerCase();
-        if (name == 'mark' && node.classes.contains('search-highlight')) {
-          final parent = node.parent;
-          if (parent != null) {
-            final children = node.nodes.toList();
-            for (final child in children) {
-              parent.insertBefore(child, node);
-            }
-            node.remove();
-            continue;
-          }
-        }
-        _stripExistingHighlights(node.nodes);
-      }
-    }
-  }
-
-  void _applyHighlightToNodes(List<dom.Node> nodes, RegExp pattern) {
-    for (final node in List<dom.Node>.from(nodes)) {
-      if (node is dom.Element) {
-        if (_shouldSkipElement(node)) {
-          continue;
-        }
-        _applyHighlightToNodes(node.nodes, pattern);
-      } else if (node is dom.Text) {
-        final text = node.text;
-        final matches = pattern.allMatches(text).toList();
-        if (matches.isEmpty) {
-          continue;
-        }
-
-        final parent = node.parent;
-        if (parent == null) {
-          continue;
-        }
-
-        final newNodes = <dom.Node>[];
-        var currentIndex = 0;
-        for (final match in matches) {
-          if (match.start > currentIndex) {
-            newNodes.add(dom.Text(text.substring(currentIndex, match.start)));
-          }
-          final highlight = dom.Element.tag('mark')
-            ..classes.add('search-highlight')
-            ..text = text.substring(match.start, match.end);
-          newNodes.add(highlight);
-          currentIndex = match.end;
-        }
-        if (currentIndex < text.length) {
-          newNodes.add(dom.Text(text.substring(currentIndex)));
-        }
-
-        for (final newNode in newNodes) {
-          parent.insertBefore(newNode, node);
-        }
-        node.remove();
-      }
-    }
-  }
-
-  bool _shouldSkipElement(dom.Element element) {
-    final name = element.localName?.toLowerCase();
-    if (name == null) {
-      return false;
-    }
-    return name == 'script' || name == 'style';
+    widget.service.goToChapter(widget.chapterIndex + 1);
   }
 
   Map<String, Style> _buildHtmlStyles({
@@ -883,7 +750,7 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     }
 
     final progressValue = _currentProgress.clamp(0.0, 1.0).toDouble();
-    final chapterCount = widget.service.book?.Chapters?.length ?? 0;
+    final chapterCount = widget.service.chapterCount;
     final hasPrevious = widget.chapterIndex > 0;
     final hasNext = chapterCount > 0 && widget.chapterIndex < chapterCount - 1;
     final theme = Theme.of(context);
@@ -928,65 +795,53 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
             controller: _controller,
             thumbVisibility: true,
             interactive: true,
-            child: SingleChildScrollView(
-              controller: _controller,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 24.0),
-                child: ColoredBox(
-                  color: backgroundColor,
-                  child: Builder(
-                    builder: (context) {
-                      final htmlStyles = _buildHtmlStyles(
-                        textColor: textColor,
+            child: Builder(
+              builder: (context) {
+                final htmlStyles = _buildHtmlStyles(
+                  textColor: textColor,
+                  backgroundColor: backgroundColor,
+                  emphasisBackground: emphasisBackground,
+                  codeBackground: codeBackground,
+                  tableBorderColor: tableBorderColor,
+                  primaryColor: colorScheme.primary,
+                  highlightBackground: highlightBackground,
+                  highlightForeground: highlightForeground,
+                );
+
+                if (sections.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'No content available.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  controller: _controller,
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: sections.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final section = sections[index];
+                    return Padding(
+                      key: _sectionKeys[section.sectionIndex],
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: _SectionHtmlView(
+                        section: section,
+                        highlightTerm: highlightTerm,
                         backgroundColor: backgroundColor,
-                        emphasisBackground: emphasisBackground,
-                        codeBackground: codeBackground,
-                        tableBorderColor: tableBorderColor,
-                        primaryColor: colorScheme.primary,
-                        highlightBackground: highlightBackground,
-                        highlightForeground: highlightForeground,
-                      );
-
-                      if (sections.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Center(
-                            child: Text(
-                              'No content available.',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                        );
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (var i = 0; i < sections.length; i++) ...[
-                            if (i > 0) const SizedBox(height: 16),
-                            Container(
-                              key: _sectionKeys[sections[i].sectionIndex],
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8.0,
-                              ),
-                              child: SelectionArea(
-                                child: Html(
-                                  data: _applyHighlight(
-                                    sections[i].html,
-                                    highlightTerm,
-                                  ),
-                                  style: htmlStyles,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
+                        htmlStyles: htmlStyles,
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ),
@@ -1020,6 +875,154 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
       ],
     );
   }
+}
+
+class _SectionHtmlView extends StatefulWidget {
+  const _SectionHtmlView({
+    required this.section,
+    required this.highlightTerm,
+    required this.backgroundColor,
+    required this.htmlStyles,
+  });
+
+  final ChapterSectionViewModel section;
+  final String? highlightTerm;
+  final Color backgroundColor;
+  final Map<String, Style> htmlStyles;
+
+  @override
+  State<_SectionHtmlView> createState() => _SectionHtmlViewState();
+}
+
+class _SectionHtmlViewState extends State<_SectionHtmlView>
+    with AutomaticKeepAliveClientMixin {
+  late String _renderedHtml;
+
+  @override
+  void initState() {
+    super.initState();
+    _renderedHtml = _generateRenderedHtml();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SectionHtmlView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.section.html != widget.section.html ||
+        oldWidget.highlightTerm != widget.highlightTerm) {
+      final nextHtml = _generateRenderedHtml();
+      if (_renderedHtml != nextHtml) {
+        setState(() {
+          _renderedHtml = nextHtml;
+        });
+      }
+    }
+  }
+
+  String _generateRenderedHtml() {
+    return _renderHtmlWithHighlight(widget.section.html, widget.highlightTerm);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return ColoredBox(
+      color: widget.backgroundColor,
+      child: SelectionArea(
+        child: Html(data: _renderedHtml, style: widget.htmlStyles),
+      ),
+    );
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+}
+
+String _renderHtmlWithHighlight(String html, String? term) {
+  final query = term?.trim();
+  if (query == null || query.isEmpty) {
+    return html;
+  }
+
+  try {
+    final fragment = html_parser.parseFragment(html);
+    _stripExistingHighlights(fragment.nodes);
+    final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
+    _applyHighlightToNodes(fragment.nodes, pattern);
+    return fragment.outerHtml;
+  } catch (_) {
+    return html;
+  }
+}
+
+void _stripExistingHighlights(List<dom.Node> nodes) {
+  for (final node in List<dom.Node>.from(nodes)) {
+    if (node is dom.Element) {
+      final name = node.localName?.toLowerCase();
+      if (name == 'mark' && node.classes.contains('search-highlight')) {
+        final parent = node.parent;
+        if (parent != null) {
+          final children = node.nodes.toList();
+          for (final child in children) {
+            parent.insertBefore(child, node);
+          }
+          node.remove();
+          continue;
+        }
+      }
+      _stripExistingHighlights(node.nodes);
+    }
+  }
+}
+
+void _applyHighlightToNodes(List<dom.Node> nodes, RegExp pattern) {
+  for (final node in List<dom.Node>.from(nodes)) {
+    if (node is dom.Element) {
+      if (_shouldSkipElement(node)) {
+        continue;
+      }
+      _applyHighlightToNodes(node.nodes, pattern);
+    } else if (node is dom.Text) {
+      final text = node.text;
+      final matches = pattern.allMatches(text).toList();
+      if (matches.isEmpty) {
+        continue;
+      }
+
+      final parent = node.parent;
+      if (parent == null) {
+        continue;
+      }
+
+      final newNodes = <dom.Node>[];
+      var currentIndex = 0;
+      for (final match in matches) {
+        if (match.start > currentIndex) {
+          newNodes.add(dom.Text(text.substring(currentIndex, match.start)));
+        }
+        final highlight = dom.Element.tag('mark')
+          ..classes.add('search-highlight')
+          ..text = text.substring(match.start, match.end);
+        newNodes.add(highlight);
+        currentIndex = match.end;
+      }
+      if (currentIndex < text.length) {
+        newNodes.add(dom.Text(text.substring(currentIndex)));
+      }
+
+      for (final newNode in newNodes) {
+        parent.insertBefore(newNode, node);
+      }
+      node.remove();
+    }
+  }
+}
+
+bool _shouldSkipElement(dom.Element element) {
+  final name = element.localName?.toLowerCase();
+  if (name == null) {
+    return false;
+  }
+  return name == 'script' || name == 'style';
 }
 
 // Helper function to map font family names to system font families

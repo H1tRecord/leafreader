@@ -40,6 +40,7 @@ class EpubReaderService with ChangeNotifier {
   int? _pendingSectionIndex;
   bool _pendingSectionShouldAlignToAnchor = false;
   String? _activeSearchHighlight;
+  final List<_ChapterEntry> _chapterEntries = <_ChapterEntry>[];
   final Map<int, List<_ChapterSection>> _chapterSectionsCache = {};
 
   // Font settings
@@ -58,6 +59,7 @@ class EpubReaderService with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   int get currentChapterIndex => _currentChapterIndex;
+  int get chapterCount => _chapterEntries.length;
   double get scrollPosition => _scrollPosition;
   String? get currentCfiPosition => _currentCfiPosition;
   int get scrollRequestId => _scrollRequestId;
@@ -83,10 +85,22 @@ class EpubReaderService with ChangeNotifier {
       final bytes = await file.readAsBytes();
       _book = await EpubReader.readBook(bytes);
       _chapterSectionsCache.clear();
+      _chapterEntries.clear();
       _activeSearchHighlight = null;
+      _rebuildChapterEntries();
 
       // Load position using CFI
       await _loadPositionWithCfi();
+
+      if (_chapterEntries.isEmpty) {
+        _currentChapterIndex = 0;
+        _scrollPosition = 0.0;
+      } else {
+        _currentChapterIndex = math.min(
+          math.max(_currentChapterIndex, 0),
+          _chapterEntries.length - 1,
+        );
+      }
 
       // Now that we know the chapter index, initialize the page controller
       // to start at the correct page
@@ -107,32 +121,44 @@ class EpubReaderService with ChangeNotifier {
 
     final storedScroll = await PrefsHelper.getEpubScrollPosition(filePath);
 
+    var resolvedIndex = await _loadPosition();
+
     if (savedCfi != null && savedCfi.isNotEmpty) {
-      // Store the CFI string
       _currentCfiPosition = savedCfi;
+      final cfiEntryIndex = _findEntryIndexForCfi(savedCfi);
 
-      // Extract chapter index from CFI
-      final chapterIndex = EpubCfiUtil.getChapterIndexFromCfi(savedCfi, _book!);
-
-      if (chapterIndex != null) {
-        _currentChapterIndex = chapterIndex;
-
-        // Extract scroll position from CFI
-        final scrollPos = EpubCfiUtil.getScrollPositionFromCfi(
+      if (cfiEntryIndex != null) {
+        resolvedIndex = cfiEntryIndex;
+      } else if (_book != null) {
+        final legacyRootIndex = EpubCfiUtil.getChapterIndexFromCfi(
           savedCfi,
           _book!,
-          chapterIndex,
         );
-        if (scrollPos != null) {
-          _scrollPosition = scrollPos.clamp(0.0, 1.0);
+        if (legacyRootIndex != null) {
+          resolvedIndex =
+              _entryIndexForSection(legacyRootIndex, 0) ??
+              _entryIndexForRoot(legacyRootIndex) ??
+              resolvedIndex;
         }
-      } else {
-        // Fallback to simple chapter position
-        _currentChapterIndex = await _loadPosition();
       }
+
+      final rootIndexForScroll = _entryForIndex(resolvedIndex)?.rootIndex ?? 0;
+      final scrollPos = EpubCfiUtil.getScrollPositionFromCfi(
+        savedCfi,
+        _book!,
+        rootIndexForScroll,
+      );
+      if (scrollPos != null) {
+        _scrollPosition = scrollPos.clamp(0.0, 1.0);
+      }
+    }
+
+    if (_chapterEntries.isEmpty) {
+      _currentChapterIndex = 0;
     } else {
-      // Fallback to simple chapter position
-      _currentChapterIndex = await _loadPosition();
+      _currentChapterIndex = resolvedIndex
+          .clamp(0, _chapterEntries.length - 1)
+          .toInt();
     }
 
     if (storedScroll != null) {
@@ -141,38 +167,42 @@ class EpubReaderService with ChangeNotifier {
   }
 
   String getChapterHtmlContent(int chapterIndex) {
-    if (_book == null ||
-        chapterIndex < 0 ||
-        chapterIndex >= _book!.Chapters!.length) {
+    final entry = _entryForIndex(chapterIndex);
+    if (entry == null) {
       return '';
     }
 
-    final sections = _ensureChapterSections(chapterIndex);
-    if (sections.isEmpty) {
+    final section = _sectionForEntry(entry);
+    if (section == null) {
       return '';
     }
 
-    final buffer = StringBuffer();
-    for (final section in sections) {
-      buffer.writeln(section.html);
-    }
-
-    return buffer.toString();
+    return section.html;
   }
 
   String getChapterTitle(int chapterIndex) {
-    final chapters = _book?.Chapters;
-    if (chapters == null ||
-        chapterIndex < 0 ||
-        chapterIndex >= chapters.length) {
+    final entry = _entryForIndex(chapterIndex);
+    if (entry == null) {
       return 'Chapter ${chapterIndex + 1}';
     }
 
-    final title = chapters[chapterIndex].Title?.trim();
-    if (title == null || title.isEmpty) {
-      return 'Chapter ${chapterIndex + 1}';
+    final section = _sectionForEntry(entry);
+    final title = section?.title?.trim();
+    if (title != null && title.isNotEmpty) {
+      return title;
     }
-    return title;
+
+    final chapters = _book?.Chapters;
+    if (chapters != null &&
+        entry.rootIndex >= 0 &&
+        entry.rootIndex < chapters.length) {
+      final rootTitle = chapters[entry.rootIndex].Title?.trim();
+      if (rootTitle != null && rootTitle.isNotEmpty) {
+        return rootTitle;
+      }
+    }
+
+    return 'Chapter ${chapterIndex + 1}';
   }
 
   Future<List<EpubSearchHit>> searchForText(
@@ -190,89 +220,78 @@ class EpubReaderService with ChangeNotifier {
       return [];
     }
 
-    final chapters = _book!.Chapters ?? [];
-    if (chapters.isEmpty) {
+    if (_chapterEntries.isEmpty) {
       return [];
     }
 
     final lowerQuery = trimmedQuery.toLowerCase();
     final indices = entireBook
-        ? List<int>.generate(chapters.length, (index) => index)
-        : <int>[currentChapterIndex];
+        ? List<int>.generate(_chapterEntries.length, (index) => index)
+        : <int>[
+            _chapterEntries.isEmpty
+                ? 0
+                : math.min(
+                    math.max(_currentChapterIndex, 0),
+                    _chapterEntries.length - 1,
+                  ),
+          ];
 
     final results = <EpubSearchHit>[];
+    final matchesPerRoot = <int, int>{};
 
-    for (final chapterIndex in indices) {
-      if (chapterIndex < 0 || chapterIndex >= chapters.length) {
+    for (final entryIndex in indices) {
+      if (results.length >= maxResults) {
+        break;
+      }
+
+      final entry = _entryForIndex(entryIndex);
+      if (entry == null) {
         continue;
       }
 
-      final sections = _ensureChapterSections(chapterIndex);
-      if (sections.isEmpty) {
+      final section = _sectionForEntry(entry);
+      if (section == null) {
         continue;
       }
 
-      final totalLength = sections.fold<int>(
-        0,
-        (previousValue, section) => previousValue + section.plainText.length,
-      );
-
-      if (totalLength == 0) {
+      final rootMatches = matchesPerRoot[entry.rootIndex] ?? 0;
+      if (rootMatches >= maxResultsPerChapter) {
         continue;
       }
 
-      var matchesForChapter = 0;
-      var accumulated = 0;
+      final plainText = section.plainText;
+      if (plainText.isEmpty) {
+        continue;
+      }
 
-      for (final section in sections) {
-        if (matchesForChapter >= maxResultsPerChapter ||
-            results.length >= maxResults) {
+      final lowerPlain = plainText.toLowerCase();
+      var searchStart = 0;
+
+      while ((matchesPerRoot[entry.rootIndex] ?? 0) < maxResultsPerChapter &&
+          results.length < maxResults) {
+        final matchIndex = lowerPlain.indexOf(lowerQuery, searchStart);
+        if (matchIndex == -1) {
           break;
         }
 
-        final plainText = section.plainText;
-        if (plainText.isEmpty) {
-          accumulated += plainText.length;
-          continue;
-        }
+        final snippet = _buildSnippet(plainText, matchIndex, lowerQuery.length);
 
-        final lowerPlain = plainText.toLowerCase();
-        var searchStart = 0;
+        final length = plainText.length;
+        final ratio = length <= 0 ? 0.0 : (matchIndex / length).clamp(0.0, 1.0);
 
-        while (matchesForChapter < maxResultsPerChapter &&
-            results.length < maxResults) {
-          final matchIndex = lowerPlain.indexOf(lowerQuery, searchStart);
-          if (matchIndex == -1) {
-            break;
-          }
+        results.add(
+          EpubSearchHit(
+            chapterIndex: entryIndex,
+            chapterTitle: getChapterTitle(entryIndex),
+            snippet: snippet,
+            scrollRatio: ratio.isNaN ? 0.0 : ratio,
+            sectionIndex: section.sectionIndex,
+          ),
+        );
 
-          final snippet = _buildSnippet(
-            plainText,
-            matchIndex,
-            lowerQuery.length,
-          );
-          final globalIndex = accumulated + matchIndex;
-          final ratio = (globalIndex / totalLength).clamp(0.0, 1.0);
-
-          results.add(
-            EpubSearchHit(
-              chapterIndex: chapterIndex,
-              chapterTitle: getChapterTitle(chapterIndex),
-              snippet: snippet,
-              scrollRatio: ratio.isNaN ? 0.0 : ratio,
-              sectionIndex: section.sectionIndex,
-            ),
-          );
-
-          matchesForChapter += 1;
-          searchStart = matchIndex + lowerQuery.length;
-        }
-
-        accumulated += plainText.length;
-      }
-
-      if (results.length >= maxResults) {
-        break;
+        matchesPerRoot[entry.rootIndex] =
+            (matchesPerRoot[entry.rootIndex] ?? 0) + 1;
+        searchStart = matchIndex + lowerQuery.length;
       }
     }
 
@@ -284,6 +303,16 @@ class EpubReaderService with ChangeNotifier {
       return null;
     }
 
+    final entry = _entryForIndex(chapterIndex);
+    if (entry == null) {
+      return null;
+    }
+
+    final section = _sectionForEntry(entry);
+    if (section == null) {
+      return null;
+    }
+
     final sanitizedSource = source.trim();
     if (sanitizedSource.startsWith('http') ||
         sanitizedSource.startsWith('https') ||
@@ -291,15 +320,19 @@ class EpubReaderService with ChangeNotifier {
       return null; // Let flutter_html handle external & data URIs.
     }
 
-    if (chapterIndex < 0 || chapterIndex >= (_book!.Chapters?.length ?? 0)) {
-      return null;
+    final String? basePath;
+    if (section.basePath != null && section.basePath!.isNotEmpty) {
+      basePath = section.basePath;
+    } else {
+      final chapters = _book!.Chapters;
+      basePath =
+          (chapters != null &&
+              entry.rootIndex >= 0 &&
+              entry.rootIndex < chapters.length)
+          ? chapters[entry.rootIndex].ContentFileName
+          : null;
     }
-
-    final chapter = _book!.Chapters![chapterIndex];
-    final resolvedPath = _resolveRelativeToChapter(
-      sanitizedSource,
-      chapter.ContentFileName,
-    );
+    final resolvedPath = _resolveRelativeToChapter(sanitizedSource, basePath);
 
     final imageFile = _lookupImageFile(resolvedPath);
     if (imageFile?.Content == null) {
@@ -315,32 +348,52 @@ class EpubReaderService with ChangeNotifier {
     int? sectionIndex,
     bool alignToSectionAnchor = false,
   }) {
-    if (index >= 0 && index < _book!.Chapters!.length) {
-      _currentChapterIndex = index;
-      final targetScroll = (scrollPosition ?? 0.0).clamp(0.0, 1.0);
-      _scrollPosition = targetScroll;
-      _pendingSectionIndex = sectionIndex;
-      _pendingSectionShouldAlignToAnchor =
-          alignToSectionAnchor && sectionIndex != null;
-
-      // Generate new CFI position
-      _updateCfiPosition();
-
-      // Save position both ways (for backward compatibility)
-      _savePosition(index);
-      _saveCfiPosition();
-
-      // Make sure the controller is initialized before trying to use it
-      // The getter will lazily initialize the controller if needed
-      if (pageController.hasClients) {
-        final currentPage = pageController.page?.round();
-        if (currentPage != index) {
-          pageController.jumpToPage(index);
-        }
-      }
-      _scrollRequestId += 1;
-      notifyListeners();
+    if (_chapterEntries.isEmpty) {
+      return;
     }
+
+    if (index < 0 || index >= _chapterEntries.length) {
+      return;
+    }
+
+    var targetIndex = index;
+    final entry = _entryForIndex(index);
+    if (entry == null) {
+      return;
+    }
+
+    if (sectionIndex != null && sectionIndex != entry.sectionIndex) {
+      final alternative = _entryIndexForSection(entry.rootIndex, sectionIndex);
+      if (alternative != null) {
+        targetIndex = alternative;
+      }
+    }
+
+    final resolvedEntry = _entryForIndex(targetIndex);
+    if (resolvedEntry == null) {
+      return;
+    }
+
+    _currentChapterIndex = targetIndex;
+    final targetScroll = (scrollPosition ?? 0.0).clamp(0.0, 1.0);
+    _scrollPosition = targetScroll;
+    _pendingSectionIndex = resolvedEntry.sectionIndex;
+    _pendingSectionShouldAlignToAnchor =
+        alignToSectionAnchor && sectionIndex != null;
+
+    _updateCfiPosition();
+
+    _savePosition(_currentChapterIndex);
+    _saveCfiPosition();
+
+    if (pageController.hasClients) {
+      final currentPage = pageController.page?.round();
+      if (currentPage != targetIndex) {
+        pageController.jumpToPage(targetIndex);
+      }
+    }
+    _scrollRequestId += 1;
+    notifyListeners();
   }
 
   void navigateToSection(
@@ -348,31 +401,47 @@ class EpubReaderService with ChangeNotifier {
     double? scrollPosition,
     int? sectionIndex,
   }) {
-    final targetSection = sectionIndex;
-    final wantsAnchorAlignment =
-        targetSection != null && scrollPosition == null;
-    final targetRatio =
-        scrollPosition ??
-        (targetSection != null
-            ? _computeSectionStartRatio(index, targetSection)
-            : null);
+    if (_chapterEntries.isEmpty) {
+      return;
+    }
 
-    if (index != _currentChapterIndex) {
+    if (index < 0 || index >= _chapterEntries.length) {
+      return;
+    }
+
+    final entry = _entryForIndex(index);
+    if (entry == null) {
+      return;
+    }
+
+    var targetIndex = index;
+    if (sectionIndex != null && sectionIndex != entry.sectionIndex) {
+      final alternative = _entryIndexForSection(entry.rootIndex, sectionIndex);
+      if (alternative != null) {
+        targetIndex = alternative;
+      }
+    }
+
+    final wantsAnchorAlignment = sectionIndex != null && scrollPosition == null;
+
+    if (targetIndex != _currentChapterIndex) {
       goToChapter(
-        index,
-        scrollPosition: targetRatio,
-        sectionIndex: targetSection,
+        targetIndex,
+        scrollPosition: scrollPosition,
+        sectionIndex: sectionIndex,
         alignToSectionAnchor: wantsAnchorAlignment,
       );
       return;
     }
 
-    if (targetRatio != null) {
-      _scrollPosition = targetRatio.clamp(0.0, 1.0);
+    if (scrollPosition != null) {
+      _scrollPosition = scrollPosition.clamp(0.0, 1.0);
       _updateCfiPosition();
+      _scheduleScrollSave();
     }
 
-    _pendingSectionIndex = targetSection;
+    final resolvedEntry = _entryForIndex(targetIndex);
+    _pendingSectionIndex = sectionIndex ?? resolvedEntry?.sectionIndex;
     _pendingSectionShouldAlignToAnchor = wantsAnchorAlignment;
     _scrollRequestId += 1;
     notifyListeners();
@@ -407,9 +476,15 @@ class EpubReaderService with ChangeNotifier {
   }
 
   void _updateCfiPosition() {
+    final entry = _entryForIndex(_currentChapterIndex);
+    if (_book == null || entry == null) {
+      _currentCfiPosition = null;
+      return;
+    }
+
     _currentCfiPosition = EpubCfiUtil.generateCfi(
       book: _book,
-      chapterIndex: _currentChapterIndex,
+      chapterIndex: entry.rootIndex,
       scrollPosition: _scrollPosition,
     );
   }
@@ -417,15 +492,25 @@ class EpubReaderService with ChangeNotifier {
   Future<void> _savePosition(int chapterIndex) async {
     final prefs = await SharedPreferences.getInstance();
     final key = _getKeyForFile(filePath);
+    final formatKey = _getFormatKeyForFile(filePath);
     await prefs.setInt(key, chapterIndex);
+    await prefs.setBool(formatKey, true);
   }
 
   Future<int> _loadPosition() async {
     final prefs = await SharedPreferences.getInstance();
     final key = _getKeyForFile(filePath);
+    final formatKey = _getFormatKeyForFile(filePath);
     final position = prefs.get(key);
+    final isFlattened = prefs.getBool(formatKey) ?? false;
 
     if (position is int) {
+      if (!isFlattened && _chapterEntries.isNotEmpty) {
+        final converted = _entryIndexForRoot(position) ?? position;
+        await prefs.setInt(key, converted);
+        await prefs.setBool(formatKey, true);
+        return converted;
+      }
       return position;
     }
     // If the stored value is not an int (e.g., a String from a previous app version),
@@ -435,6 +520,10 @@ class EpubReaderService with ChangeNotifier {
 
   static String _getKeyForFile(String filePath) {
     return 'epub_position_${filePath.hashCode}';
+  }
+
+  static String _getFormatKeyForFile(String filePath) {
+    return 'epub_position_format_${filePath.hashCode}';
   }
 
   Future<void> savePositionOnExit() async {
@@ -503,6 +592,105 @@ class EpubReaderService with ChangeNotifier {
     _scrollSaveDebounce = Timer(const Duration(milliseconds: 500), () async {
       await PrefsHelper.saveEpubScrollPosition(filePath, _scrollPosition);
     });
+  }
+
+  void _rebuildChapterEntries() {
+    _chapterEntries.clear();
+    if (_book == null) {
+      return;
+    }
+
+    final chapters = _book!.Chapters ?? [];
+    for (var rootIndex = 0; rootIndex < chapters.length; rootIndex++) {
+      final sections = _ensureChapterSections(rootIndex);
+      for (final section in sections) {
+        _chapterEntries.add(
+          _ChapterEntry(
+            rootIndex: rootIndex,
+            sectionIndex: section.sectionIndex,
+          ),
+        );
+      }
+    }
+  }
+
+  _ChapterEntry? _entryForIndex(int index) {
+    if (index < 0 || index >= _chapterEntries.length) {
+      return null;
+    }
+    return _chapterEntries[index];
+  }
+
+  _ChapterSection? _sectionForEntry(_ChapterEntry entry) {
+    final sections = _ensureChapterSections(entry.rootIndex);
+    for (final section in sections) {
+      if (section.sectionIndex == entry.sectionIndex) {
+        return section;
+      }
+    }
+    return null;
+  }
+
+  int? _entryIndexForSection(int rootIndex, int sectionIndex) {
+    for (var i = 0; i < _chapterEntries.length; i++) {
+      final entry = _chapterEntries[i];
+      if (entry.rootIndex == rootIndex && entry.sectionIndex == sectionIndex) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  int? _entryIndexForRoot(int rootIndex) {
+    for (var i = 0; i < _chapterEntries.length; i++) {
+      if (_chapterEntries[i].rootIndex == rootIndex) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  int? _findEntryIndexForCfi(String cfi) {
+    final idRef = EpubCfiUtil.extractSpineIdRef(cfi);
+    if (idRef == null) {
+      return null;
+    }
+
+    for (var i = 0; i < _chapterEntries.length; i++) {
+      final section = _sectionForEntry(_chapterEntries[i]);
+      if (section == null) {
+        continue;
+      }
+
+      if (_matchesIdRef(
+        idRef,
+        anchor: section.anchor,
+        basePath: section.basePath,
+      )) {
+        return i;
+      }
+    }
+
+    return null;
+  }
+
+  bool _matchesIdRef(String idRef, {String? anchor, String? basePath}) {
+    if (anchor != null && anchor.isNotEmpty && anchor == idRef) {
+      return true;
+    }
+
+    if (basePath != null) {
+      final sanitized = basePath.split('/').last;
+      if (sanitized.contains(idRef)) {
+        return true;
+      }
+      final withoutExtension = sanitized.replaceFirst(RegExp(r'\.[^.]+$'), '');
+      if (withoutExtension == idRef) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   List<_ChapterSection> _ensureChapterSections(int chapterIndex) {
@@ -606,52 +794,30 @@ class EpubReaderService with ChangeNotifier {
   }
 
   List<ChapterNavItem> getNavigationItems() {
-    final chapters = _book?.Chapters;
-    if (chapters == null || chapters.isEmpty) {
-      return [];
+    if (_chapterEntries.isEmpty) {
+      return const [];
     }
 
     final items = <ChapterNavItem>[];
-
-    for (var i = 0; i < chapters.length; i++) {
-      final sections = _ensureChapterSections(i);
-      if (sections.isEmpty) {
+    for (var i = 0; i < _chapterEntries.length; i++) {
+      final entry = _chapterEntries[i];
+      final section = _sectionForEntry(entry);
+      if (section == null) {
         continue;
       }
 
-      final totalLength = sections.fold<int>(
-        0,
-        (previousValue, section) => previousValue + section.plainText.length,
+      final title = section.title?.trim();
+      items.add(
+        ChapterNavItem(
+          title: (title != null && title.isNotEmpty)
+              ? title
+              : 'Chapter ${i + 1}',
+          chapterIndex: i,
+          scrollRatio: 0.0,
+          depth: section.depth,
+          sectionIndex: section.sectionIndex,
+        ),
       );
-
-      var accumulated = 0;
-      for (final section in sections) {
-        final length = section.plainText.length;
-        final ratio = totalLength == 0
-            ? 0.0
-            : (accumulated / totalLength).clamp(0.0, 1.0);
-
-        final depth = section.depth;
-        final title =
-            section.title ??
-            (depth == 0
-                ? getChapterTitle(i)
-                : 'Section ${section.sectionIndex + 1}');
-
-        if (title.isNotEmpty) {
-          items.add(
-            ChapterNavItem(
-              title: title,
-              chapterIndex: i,
-              scrollRatio: depth == 0 ? 0.0 : ratio,
-              depth: depth,
-              sectionIndex: section.sectionIndex,
-            ),
-          );
-        }
-
-        accumulated += length;
-      }
     }
 
     return items;
@@ -671,60 +837,24 @@ class EpubReaderService with ChangeNotifier {
   }
 
   List<ChapterSectionViewModel> getRenderedSections(int chapterIndex) {
-    final sections = _ensureChapterSections(chapterIndex);
-    if (sections.isEmpty) {
+    final entry = _entryForIndex(chapterIndex);
+    if (entry == null) {
       return const [];
     }
 
-    final totalLength = sections.fold<int>(
-      0,
-      (previousValue, section) => previousValue + section.plainText.length,
-    );
-
-    var accumulated = 0;
-    final viewModels = <ChapterSectionViewModel>[];
-    for (final section in sections) {
-      final ratio = totalLength == 0
-          ? 0.0
-          : (accumulated / totalLength).clamp(0.0, 1.0);
-      viewModels.add(
-        ChapterSectionViewModel(
-          html: section.html,
-          depth: section.depth,
-          sectionIndex: section.sectionIndex,
-          startRatio: ratio,
-        ),
-      );
-      accumulated += section.plainText.length;
+    final section = _sectionForEntry(entry);
+    if (section == null) {
+      return const [];
     }
 
-    return viewModels;
-  }
-
-  double? _computeSectionStartRatio(int chapterIndex, int sectionIndex) {
-    final sections = _ensureChapterSections(chapterIndex);
-    if (sections.isEmpty) {
-      return null;
-    }
-
-    final totalLength = sections.fold<int>(
-      0,
-      (previousValue, section) => previousValue + section.plainText.length,
-    );
-
-    if (totalLength == 0) {
-      return 0.0;
-    }
-
-    var accumulated = 0;
-    for (final section in sections) {
-      if (section.sectionIndex == sectionIndex) {
-        return (accumulated / totalLength).clamp(0.0, 1.0);
-      }
-      accumulated += section.plainText.length;
-    }
-
-    return null;
+    return <ChapterSectionViewModel>[
+      ChapterSectionViewModel(
+        html: section.html,
+        depth: section.depth,
+        sectionIndex: section.sectionIndex,
+        startRatio: 0.0,
+      ),
+    ];
   }
 
   String _inlineChapterStyles(String html, String? chapterPath) {
@@ -924,6 +1054,13 @@ class _SectionCollector {
   void add(_ChapterSection section) {
     sections.add(section);
   }
+}
+
+class _ChapterEntry {
+  const _ChapterEntry({required this.rootIndex, required this.sectionIndex});
+
+  final int rootIndex;
+  final int sectionIndex;
 }
 
 class _ChapterSection {

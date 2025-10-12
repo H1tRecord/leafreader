@@ -117,6 +117,25 @@ class EpubCfiUtil {
     }
   }
 
+  /// Extracts the spine item ID reference from a CFI string.
+  static String? extractSpineIdRef(String? cfi) {
+    if (cfi == null || cfi.isEmpty) {
+      return null;
+    }
+
+    try {
+      final cfiFragment = EpubCfiParser().parse(cfi, 'fragment');
+      final steps = cfiFragment.path?.localPath?.steps;
+      if (steps == null || steps.isEmpty) {
+        return null;
+      }
+
+      return steps.first.idAssertion;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Helper methods
   static String? _generatePackageComponent(
     EpubBook book,
