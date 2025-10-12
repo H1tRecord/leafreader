@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import '../services/epub_reader_service.dart';
 
 PreferredSizeWidget buildAppBar(
@@ -108,7 +110,6 @@ Future<void> showSearchDialog(
   EpubReaderService service,
 ) async {
   final queryController = TextEditingController();
-  final focusNode = FocusNode();
 
   _EpubSearchScope scope = _EpubSearchScope.chapter;
   List<EpubSearchHit> hits = [];
@@ -116,210 +117,212 @@ Future<void> showSearchDialog(
   String? statusMessage = 'Enter a search term to begin.';
   String activeQuery = '';
 
-  try {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (modalContext) {
-        return StatefulBuilder(
-          builder: (modalContext, setModalState) {
-            Future<void> handleSearch() async {
-              final query = queryController.text.trim();
-              if (query.isEmpty) {
-                setModalState(() {
-                  isSearching = false;
-                  hits = [];
-                  statusMessage = 'Enter a search term to begin.';
-                  activeQuery = '';
-                });
-                return;
-              }
-
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (modalContext) {
+      return StatefulBuilder(
+        builder: (modalContext, setModalState) {
+          Future<void> handleSearch() async {
+            final query = queryController.text.trim();
+            if (query.isEmpty) {
+              service.setActiveSearchHighlight(null);
               setModalState(() {
-                isSearching = true;
+                isSearching = false;
                 hits = [];
-                statusMessage = null;
-                activeQuery = query;
+                statusMessage = 'Enter a search term to begin.';
+                activeQuery = '';
               });
-
-              try {
-                final results = await service.searchForText(
-                  query,
-                  entireBook: scope == _EpubSearchScope.book,
-                );
-                if (!modalContext.mounted) {
-                  return;
-                }
-                setModalState(() {
-                  isSearching = false;
-                  hits = results;
-                  statusMessage = results.isEmpty ? 'No matches found.' : null;
-                });
-              } catch (_) {
-                if (!modalContext.mounted) {
-                  return;
-                }
-                setModalState(() {
-                  isSearching = false;
-                  hits = [];
-                  statusMessage = 'Unable to complete search.';
-                });
-              }
+              return;
             }
 
-            Widget buildResults() {
-              if (isSearching) {
-                return const Center(child: CircularProgressIndicator());
-              }
+            setModalState(() {
+              isSearching = true;
+              hits = [];
+              statusMessage = null;
+              activeQuery = query;
+            });
+            service.setActiveSearchHighlight(query);
 
-              if (hits.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      statusMessage ?? 'No results yet.',
-                      textAlign: TextAlign.center,
-                    ),
+            try {
+              final results = await service.searchForText(
+                query,
+                entireBook: scope == _EpubSearchScope.book,
+              );
+              if (!modalContext.mounted) {
+                return;
+              }
+              setModalState(() {
+                isSearching = false;
+                hits = results;
+                statusMessage = results.isEmpty ? 'No matches found.' : null;
+              });
+            } catch (_) {
+              if (!modalContext.mounted) {
+                return;
+              }
+              setModalState(() {
+                isSearching = false;
+                hits = [];
+                statusMessage = 'Unable to complete search.';
+              });
+            }
+          }
+
+          Widget buildResults() {
+            if (isSearching) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (hits.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    statusMessage ?? 'No results yet.',
+                    textAlign: TextAlign.center,
                   ),
-                );
-              }
-
-              return ListView.separated(
-                itemCount: hits.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final hit = hits[index];
-                  final percent = (hit.scrollRatio * 100)
-                      .clamp(0, 100)
-                      .toStringAsFixed(0);
-                  return ListTile(
-                    onTap: () {
-                      FocusScope.of(modalContext).unfocus();
-                      Navigator.of(modalContext).pop();
-                      service.goToChapter(
-                        hit.chapterIndex,
-                        scrollPosition: hit.scrollRatio,
-                      );
-                    },
-                    title: Text(hit.chapterTitle),
-                    subtitle: _buildHighlightedSnippet(
-                      modalContext,
-                      hit.snippet,
-                      activeQuery,
-                    ),
-                    trailing: Text('$percent%'),
-                  );
-                },
+                ),
               );
             }
 
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(modalContext).viewInsets.bottom,
-                ),
-                child: SizedBox(
-                  height: MediaQuery.of(modalContext).size.height * 0.75,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Search EPUB',
-                                style: Theme.of(
-                                  modalContext,
-                                ).textTheme.titleLarge,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.of(modalContext).pop(),
-                              icon: const Icon(Icons.close),
-                              tooltip: 'Close',
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: TextField(
-                          controller: queryController,
-                          focusNode: focusNode,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) => handleSearch(),
-                          decoration: const InputDecoration(
-                            labelText: 'Search query',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                        child: Wrap(
-                          spacing: 8,
-                          children: [
-                            ChoiceChip(
-                              label: const Text('Current chapter'),
-                              selected: scope == _EpubSearchScope.chapter,
-                              onSelected: (selected) {
-                                if (selected &&
-                                    scope != _EpubSearchScope.chapter) {
-                                  setModalState(() {
-                                    scope = _EpubSearchScope.chapter;
-                                  });
-                                  if (activeQuery.isNotEmpty) {
-                                    handleSearch();
-                                  }
-                                }
-                              },
-                            ),
-                            ChoiceChip(
-                              label: const Text('Entire book'),
-                              selected: scope == _EpubSearchScope.book,
-                              onSelected: (selected) {
-                                if (selected &&
-                                    scope != _EpubSearchScope.book) {
-                                  setModalState(() {
-                                    scope = _EpubSearchScope.book;
-                                  });
-                                  if (activeQuery.isNotEmpty) {
-                                    handleSearch();
-                                  }
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: isSearching ? null : handleSearch,
-                            icon: const Icon(Icons.search),
-                            label: const Text('Search'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(child: buildResults()),
-                    ],
+            return ListView.separated(
+              itemCount: hits.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final hit = hits[index];
+                final percent = (hit.scrollRatio * 100)
+                    .clamp(0, 100)
+                    .toStringAsFixed(0);
+                return ListTile(
+                  onTap: () {
+                    FocusScope.of(modalContext).unfocus();
+                    service.setActiveSearchHighlight(activeQuery);
+                    Navigator.of(modalContext).pop();
+                    service.navigateToSection(
+                      hit.chapterIndex,
+                      scrollPosition: hit.scrollRatio,
+                      sectionIndex: hit.sectionIndex,
+                    );
+                  },
+                  title: Text(hit.chapterTitle),
+                  subtitle: _buildHighlightedSnippet(
+                    modalContext,
+                    hit.snippet,
+                    activeQuery,
                   ),
+                  trailing: Text('$percent%'),
+                );
+              },
+            );
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+              ),
+              child: SizedBox(
+                height: MediaQuery.of(modalContext).size.height * 0.75,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Search EPUB',
+                              style: Theme.of(
+                                modalContext,
+                              ).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(modalContext).pop(),
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Close',
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        controller: queryController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => handleSearch(),
+                        onChanged: (value) {
+                          if (value.trim().isEmpty) {
+                            service.setActiveSearchHighlight(null);
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Search query',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Current chapter'),
+                            selected: scope == _EpubSearchScope.chapter,
+                            onSelected: (selected) {
+                              if (selected &&
+                                  scope != _EpubSearchScope.chapter) {
+                                setModalState(() {
+                                  scope = _EpubSearchScope.chapter;
+                                });
+                                if (activeQuery.isNotEmpty) {
+                                  handleSearch();
+                                }
+                              }
+                            },
+                          ),
+                          ChoiceChip(
+                            label: const Text('Entire book'),
+                            selected: scope == _EpubSearchScope.book,
+                            onSelected: (selected) {
+                              if (selected && scope != _EpubSearchScope.book) {
+                                setModalState(() {
+                                  scope = _EpubSearchScope.book;
+                                });
+                                if (activeQuery.isNotEmpty) {
+                                  handleSearch();
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          onPressed: isSearching ? null : handleSearch,
+                          icon: const Icon(Icons.search),
+                          label: const Text('Search'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(child: buildResults()),
+                  ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  } finally {
-    focusNode.dispose();
-    queryController.dispose();
-  }
+            ),
+          );
+        },
+      );
+    },
+  );
 }
 
 Widget _buildHighlightedSnippet(
@@ -378,15 +381,45 @@ void showChaptersDialog(BuildContext context, EpubReaderService service) {
         title: const Text('Chapters'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            itemCount: service.book?.Chapters?.length ?? 0,
-            itemBuilder: (context, index) {
-              final chapter = service.book!.Chapters![index];
-              return ListTile(
-                title: Text(chapter.Title ?? 'Chapter ${index + 1}'),
-                onTap: () {
-                  service.goToChapter(index);
-                  Navigator.pop(context);
+          child: Builder(
+            builder: (context) {
+              final items = service.getNavigationItems();
+              if (items.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No chapters available.'),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final isTopLevel = item.depth == 0;
+                  final contentPadding = EdgeInsets.only(
+                    left: 16.0 + (item.depth * 16.0),
+                    right: 16.0,
+                  );
+
+                  return ListTile(
+                    dense: !isTopLevel,
+                    contentPadding: contentPadding,
+                    title: Text(
+                      item.title,
+                      style: isTopLevel
+                          ? Theme.of(context).textTheme.titleMedium
+                          : Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    onTap: () {
+                      service.navigateToSection(
+                        item.chapterIndex,
+                        sectionIndex: item.sectionIndex,
+                      );
+                      Navigator.pop(context);
+                    },
+                  );
                 },
               );
             },
@@ -412,6 +445,8 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
   bool _hasRestored = false;
   int _restoreAttempts = 0;
   double _currentProgress = 0.0;
+  late int _lastScrollRequestId;
+  final Map<int, GlobalKey> _sectionKeys = <int, GlobalKey>{};
 
   @override
   void initState() {
@@ -421,6 +456,7 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     if (widget.chapterIndex == widget.service.currentChapterIndex) {
       _currentProgress = widget.service.scrollPosition.clamp(0.0, 1.0);
     }
+    _lastScrollRequestId = widget.service.scrollRequestId;
     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
   }
 
@@ -440,7 +476,19 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
       _hasRestored = false;
       _restoreAttempts = 0;
       _currentProgress = widget.service.scrollPosition.clamp(0.0, 1.0);
+      _lastScrollRequestId = widget.service.scrollRequestId;
       WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
+    }
+
+    if (widget.chapterIndex == currentChapter) {
+      final requestId = widget.service.scrollRequestId;
+      if (requestId != _lastScrollRequestId) {
+        _lastScrollRequestId = requestId;
+        _hasRestored = false;
+        _restoreAttempts = 0;
+        _currentProgress = widget.service.scrollPosition.clamp(0.0, 1.0);
+        WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
+      }
     }
   }
 
@@ -473,7 +521,11 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     }
   }
 
-  void _restoreScroll() {
+  Future<void> _restoreScroll() async {
+    if (!mounted) {
+      return;
+    }
+
     if (_hasRestored ||
         widget.chapterIndex != widget.service.currentChapterIndex) {
       return;
@@ -481,6 +533,39 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
 
     if (!_controller.hasClients) {
       _scheduleRetry();
+      return;
+    }
+
+    final pendingSection = widget.service.pendingSectionIndex;
+    final shouldAlignToAnchor =
+        widget.service.pendingSectionShouldAlignToAnchor;
+    if (pendingSection != null && shouldAlignToAnchor) {
+      final key = _sectionKeys[pendingSection];
+      final context = key?.currentContext;
+      if (context == null) {
+        _scheduleRetry();
+        return;
+      }
+
+      await Scrollable.ensureVisible(
+        context,
+        alignment: 0.0,
+        duration: Duration.zero,
+        curve: Curves.linear,
+      );
+
+      final maxScrollAfter = _controller.position.maxScrollExtent;
+      final progress = maxScrollAfter <= 0
+          ? 0.0
+          : (_controller.offset / maxScrollAfter).clamp(0.0, 1.0);
+      if (mounted && (progress - _currentProgress).abs() > 0.001) {
+        setState(() {
+          _currentProgress = progress.toDouble();
+        });
+      }
+
+      widget.service.markSectionNavigationHandled();
+      _hasRestored = true;
       return;
     }
 
@@ -513,11 +598,290 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
   }
 
+  void _syncSectionKeys(List<ChapterSectionViewModel> sections) {
+    final ids = sections.map((section) => section.sectionIndex).toSet();
+    _sectionKeys.removeWhere((key, _) => !ids.contains(key));
+    for (final section in sections) {
+      _sectionKeys.putIfAbsent(section.sectionIndex, () => GlobalKey());
+    }
+  }
+
+  int _resolveCurrentSectionIndex(List<ChapterSectionViewModel> sections) {
+    if (sections.isEmpty) {
+      return -1;
+    }
+
+    const tolerance = 0.0005;
+    final progress = _currentProgress.clamp(0.0, 1.0) + tolerance;
+
+    for (var i = 0; i < sections.length; i++) {
+      final start = sections[i].startRatio;
+      final end = i + 1 < sections.length
+          ? sections[i + 1].startRatio
+          : 1.0 + tolerance;
+      if (progress >= start && progress < end) {
+        return i;
+      }
+    }
+
+    return sections.length - 1;
+  }
+
+  void _handlePrevious(List<ChapterSectionViewModel> sections) {
+    final currentIndex = _resolveCurrentSectionIndex(sections);
+    if (currentIndex > 0) {
+      final target = sections[currentIndex - 1];
+      widget.service.navigateToSection(
+        widget.chapterIndex,
+        sectionIndex: target.sectionIndex,
+      );
+      return;
+    }
+
+    if (widget.chapterIndex <= 0) {
+      return;
+    }
+
+    final previousChapterIndex = widget.chapterIndex - 1;
+    final previousSections = widget.service.getRenderedSections(
+      previousChapterIndex,
+    );
+    if (previousSections.isNotEmpty) {
+      final target = previousSections.last;
+      widget.service.navigateToSection(
+        previousChapterIndex,
+        sectionIndex: target.sectionIndex,
+      );
+    } else {
+      widget.service.goToChapter(previousChapterIndex);
+    }
+  }
+
+  void _handleNext(List<ChapterSectionViewModel> sections) {
+    final currentIndex = _resolveCurrentSectionIndex(sections);
+    if (currentIndex >= 0 && currentIndex < sections.length - 1) {
+      final target = sections[currentIndex + 1];
+      widget.service.navigateToSection(
+        widget.chapterIndex,
+        sectionIndex: target.sectionIndex,
+      );
+      return;
+    }
+
+    final totalChapters = widget.service.book?.Chapters?.length ?? 0;
+    if (widget.chapterIndex >= totalChapters - 1) {
+      return;
+    }
+
+    final nextChapterIndex = widget.chapterIndex + 1;
+    final nextSections = widget.service.getRenderedSections(nextChapterIndex);
+    if (nextSections.isNotEmpty) {
+      final target = nextSections.first;
+      widget.service.navigateToSection(
+        nextChapterIndex,
+        sectionIndex: target.sectionIndex,
+      );
+    } else {
+      widget.service.goToChapter(nextChapterIndex);
+    }
+  }
+
+  String _applyHighlight(String html, String? term) {
+    final query = term?.trim();
+    if (query == null || query.isEmpty) {
+      return html;
+    }
+
+    try {
+      final fragment = html_parser.parseFragment(html);
+      _stripExistingHighlights(fragment.nodes);
+      final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
+      _applyHighlightToNodes(fragment.nodes, pattern);
+      return fragment.outerHtml;
+    } catch (_) {
+      return html;
+    }
+  }
+
+  void _stripExistingHighlights(List<dom.Node> nodes) {
+    for (final node in List<dom.Node>.from(nodes)) {
+      if (node is dom.Element) {
+        final name = node.localName?.toLowerCase();
+        if (name == 'mark' && node.classes.contains('search-highlight')) {
+          final parent = node.parent;
+          if (parent != null) {
+            final children = node.nodes.toList();
+            for (final child in children) {
+              parent.insertBefore(child, node);
+            }
+            node.remove();
+            continue;
+          }
+        }
+        _stripExistingHighlights(node.nodes);
+      }
+    }
+  }
+
+  void _applyHighlightToNodes(List<dom.Node> nodes, RegExp pattern) {
+    for (final node in List<dom.Node>.from(nodes)) {
+      if (node is dom.Element) {
+        if (_shouldSkipElement(node)) {
+          continue;
+        }
+        _applyHighlightToNodes(node.nodes, pattern);
+      } else if (node is dom.Text) {
+        final text = node.text;
+        final matches = pattern.allMatches(text).toList();
+        if (matches.isEmpty) {
+          continue;
+        }
+
+        final parent = node.parent;
+        if (parent == null) {
+          continue;
+        }
+
+        final newNodes = <dom.Node>[];
+        var currentIndex = 0;
+        for (final match in matches) {
+          if (match.start > currentIndex) {
+            newNodes.add(dom.Text(text.substring(currentIndex, match.start)));
+          }
+          final highlight = dom.Element.tag('mark')
+            ..classes.add('search-highlight')
+            ..text = text.substring(match.start, match.end);
+          newNodes.add(highlight);
+          currentIndex = match.end;
+        }
+        if (currentIndex < text.length) {
+          newNodes.add(dom.Text(text.substring(currentIndex)));
+        }
+
+        for (final newNode in newNodes) {
+          parent.insertBefore(newNode, node);
+        }
+        node.remove();
+      }
+    }
+  }
+
+  bool _shouldSkipElement(dom.Element element) {
+    final name = element.localName?.toLowerCase();
+    if (name == null) {
+      return false;
+    }
+    return name == 'script' || name == 'style';
+  }
+
+  Map<String, Style> _buildHtmlStyles({
+    required Color textColor,
+    required Color backgroundColor,
+    required Color emphasisBackground,
+    required Color codeBackground,
+    required Color tableBorderColor,
+    required Color primaryColor,
+    required Color highlightBackground,
+    required Color highlightForeground,
+  }) {
+    final fontFamily = _mapFontFamilyToSystem(widget.service.fontFamily);
+    final fontSize = widget.service.fontSize;
+
+    return {
+      'html': Style(backgroundColor: backgroundColor),
+      'body': Style(
+        fontFamily: fontFamily,
+        fontSize: FontSize(fontSize),
+        color: textColor,
+        backgroundColor: backgroundColor,
+        lineHeight: const LineHeight(1.6),
+      ),
+      'p': Style(
+        fontFamily: fontFamily,
+        fontSize: FontSize(fontSize),
+        color: textColor,
+      ),
+      'div': Style(
+        fontFamily: fontFamily,
+        fontSize: FontSize(fontSize),
+        color: textColor,
+      ),
+      'span': Style(
+        fontFamily: fontFamily,
+        fontSize: FontSize(fontSize),
+        color: textColor,
+      ),
+      'li': Style(color: textColor),
+      'h1': Style(color: textColor),
+      'h2': Style(color: textColor),
+      'h3': Style(color: textColor),
+      'h4': Style(color: textColor),
+      'h5': Style(color: textColor),
+      'h6': Style(color: textColor),
+      'img': Style(
+        padding: HtmlPaddings.zero,
+        margin: Margins.symmetric(vertical: 8),
+        alignment: Alignment.center,
+        width: Width.auto(),
+        height: Height.auto(),
+      ),
+      'blockquote': Style(
+        margin: Margins.symmetric(vertical: 12, horizontal: 8),
+        padding: HtmlPaddings.all(12),
+        backgroundColor: emphasisBackground,
+        border: Border(left: BorderSide(width: 4, color: primaryColor)),
+        fontStyle: FontStyle.italic,
+        color: textColor,
+      ),
+      'code': Style(
+        backgroundColor: codeBackground,
+        padding: HtmlPaddings.all(8),
+        fontFamily: 'monospace',
+        color: textColor,
+      ),
+      'pre': Style(
+        backgroundColor: codeBackground,
+        padding: HtmlPaddings.all(12),
+        fontFamily: 'monospace',
+        color: textColor,
+      ),
+      'ul': Style(
+        margin: Margins.symmetric(vertical: 8, horizontal: 12),
+        color: textColor,
+      ),
+      'ol': Style(
+        margin: Margins.symmetric(vertical: 8, horizontal: 12),
+        color: textColor,
+      ),
+      'table': Style(
+        margin: Margins.symmetric(vertical: 12),
+        padding: HtmlPaddings.all(8),
+        backgroundColor: emphasisBackground,
+        color: textColor,
+        border: Border.all(color: tableBorderColor),
+      ),
+      'th': Style(fontWeight: FontWeight.bold, color: textColor),
+      'td': Style(color: textColor),
+      'a': Style(color: primaryColor, textDecoration: TextDecoration.underline),
+      'strong': Style(color: textColor),
+      'em': Style(color: textColor),
+      'mark': Style(
+        backgroundColor: highlightBackground,
+        color: highlightForeground,
+        padding: HtmlPaddings.symmetric(horizontal: 2, vertical: 1),
+      ),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    final remainingPercent = ((1 - _currentProgress) * 100)
-        .clamp(0.0, 100.0)
-        .toDouble();
+    if (_lastScrollRequestId != widget.service.scrollRequestId) {
+      _lastScrollRequestId = widget.service.scrollRequestId;
+      _hasRestored = false;
+      _restoreAttempts = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
+    }
+
     final progressValue = _currentProgress.clamp(0.0, 1.0).toDouble();
     final chapterCount = widget.service.book?.Chapters?.length ?? 0;
     final hasPrevious = widget.chapterIndex > 0;
@@ -533,6 +897,19 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
         ? colorScheme.surfaceVariant.withOpacity(0.35)
         : colorScheme.surfaceVariant.withOpacity(0.75);
     final tableBorderColor = colorScheme.outlineVariant;
+    final highlightTerm = widget.service.activeSearchHighlight;
+    final highlightBackground = theme.brightness == Brightness.dark
+        ? colorScheme.tertiaryContainer.withOpacity(0.75)
+        : colorScheme.tertiaryContainer;
+    final highlightForeground = colorScheme.onTertiaryContainer;
+    final sections = widget.service.getRenderedSections(widget.chapterIndex);
+    _syncSectionKeys(sections);
+    final currentSectionIndex = _resolveCurrentSectionIndex(sections);
+    final hasPreviousSection = currentSectionIndex > 0;
+    final hasNextSection =
+        currentSectionIndex >= 0 && currentSectionIndex < sections.length - 1;
+    final enablePrevious = hasPreviousSection || hasPrevious;
+    final enableNext = hasNextSection || hasNext;
 
     return Column(
       children: [
@@ -543,7 +920,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
             children: [
               LinearProgressIndicator(value: progressValue),
               const SizedBox(height: 8),
-              Text('${remainingPercent.toStringAsFixed(0)}% left in chapter'),
             ],
           ),
         ),
@@ -559,108 +935,54 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
                 padding: const EdgeInsets.only(bottom: 24.0),
                 child: ColoredBox(
                   color: backgroundColor,
-                  child: Html(
-                    data: widget.service.getChapterHtmlContent(
-                      widget.chapterIndex,
-                    ),
-                    style: {
-                      'html': Style(backgroundColor: backgroundColor),
-                      // Apply font family and size to all text elements
-                      'body': Style(
-                        fontFamily: _mapFontFamilyToSystem(
-                          widget.service.fontFamily,
-                        ),
-                        fontSize: FontSize(widget.service.fontSize),
-                        color: textColor,
+                  child: Builder(
+                    builder: (context) {
+                      final htmlStyles = _buildHtmlStyles(
+                        textColor: textColor,
                         backgroundColor: backgroundColor,
-                        lineHeight: const LineHeight(1.6),
-                      ),
-                      'p': Style(
-                        fontFamily: _mapFontFamilyToSystem(
-                          widget.service.fontFamily,
-                        ),
-                        fontSize: FontSize(widget.service.fontSize),
-                        color: textColor,
-                      ),
-                      'div': Style(
-                        fontFamily: _mapFontFamilyToSystem(
-                          widget.service.fontFamily,
-                        ),
-                        fontSize: FontSize(widget.service.fontSize),
-                        color: textColor,
-                      ),
-                      'span': Style(
-                        fontFamily: _mapFontFamilyToSystem(
-                          widget.service.fontFamily,
-                        ),
-                        fontSize: FontSize(widget.service.fontSize),
-                        color: textColor,
-                      ),
-                      'li': Style(color: textColor),
-                      'h1': Style(color: textColor),
-                      'h2': Style(color: textColor),
-                      'h3': Style(color: textColor),
-                      'h4': Style(color: textColor),
-                      'h5': Style(color: textColor),
-                      'h6': Style(color: textColor),
-                      'img': Style(
-                        padding: HtmlPaddings.zero,
-                        margin: Margins.symmetric(vertical: 8),
-                        alignment: Alignment.center,
-                        width: Width.auto(),
-                        height: Height.auto(),
-                      ),
-                      'blockquote': Style(
-                        margin: Margins.symmetric(vertical: 12, horizontal: 8),
-                        padding: HtmlPaddings.all(12),
-                        backgroundColor: emphasisBackground,
-                        border: Border(
-                          left: BorderSide(
-                            width: 4,
-                            color: colorScheme.primary,
+                        emphasisBackground: emphasisBackground,
+                        codeBackground: codeBackground,
+                        tableBorderColor: tableBorderColor,
+                        primaryColor: colorScheme.primary,
+                        highlightBackground: highlightBackground,
+                        highlightForeground: highlightForeground,
+                      );
+
+                      if (sections.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'No content available.',
+                              style: theme.textTheme.bodyMedium,
+                            ),
                           ),
-                        ),
-                        fontStyle: FontStyle.italic,
-                        color: textColor,
-                      ),
-                      'code': Style(
-                        backgroundColor: codeBackground,
-                        padding: HtmlPaddings.all(8),
-                        fontFamily: 'monospace',
-                        color: textColor,
-                      ),
-                      'pre': Style(
-                        backgroundColor: codeBackground,
-                        padding: HtmlPaddings.all(12),
-                        fontFamily: 'monospace',
-                        color: textColor,
-                      ),
-                      'ul': Style(
-                        margin: Margins.symmetric(vertical: 8, horizontal: 12),
-                        color: textColor,
-                      ),
-                      'ol': Style(
-                        margin: Margins.symmetric(vertical: 8, horizontal: 12),
-                        color: textColor,
-                      ),
-                      'table': Style(
-                        margin: Margins.symmetric(vertical: 12),
-                        padding: HtmlPaddings.all(8),
-                        backgroundColor: emphasisBackground,
-                        color: textColor,
-                        border: Border.all(color: tableBorderColor),
-                      ),
-                      'th': Style(
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                      'td': Style(color: textColor),
-                      'a': Style(
-                        color: colorScheme.primary,
-                        textDecoration: TextDecoration.underline,
-                      ),
-                      'strong': Style(color: textColor),
-                      'em': Style(color: textColor),
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < sections.length; i++) ...[
+                            if (i > 0) const SizedBox(height: 16),
+                            Container(
+                              key: _sectionKeys[sections[i].sectionIndex],
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8.0,
+                              ),
+                              child: SelectionArea(
+                                child: Html(
+                                  data: _applyHighlight(
+                                    sections[i].html,
+                                    highlightTerm,
+                                  ),
+                                  style: htmlStyles,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
                     },
                   ),
                 ),
@@ -676,10 +998,8 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: hasPrevious
-                        ? () => widget.service.goToChapter(
-                            widget.chapterIndex - 1,
-                          )
+                    onPressed: enablePrevious
+                        ? () => _handlePrevious(sections)
                         : null,
                     icon: const Icon(Icons.chevron_left),
                     label: const Text('Previous'),
@@ -688,11 +1008,7 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: hasNext
-                        ? () => widget.service.goToChapter(
-                            widget.chapterIndex + 1,
-                          )
-                        : null,
+                    onPressed: enableNext ? () => _handleNext(sections) : null,
                     icon: const Icon(Icons.chevron_right),
                     label: const Text('Next'),
                   ),
