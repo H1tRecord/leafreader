@@ -1009,7 +1009,14 @@ class _SectionHtmlViewState extends State<_SectionHtmlView>
     return ColoredBox(
       color: widget.backgroundColor,
       child: SelectionArea(
-        child: Html(data: _renderedHtml, style: widget.htmlStyles),
+        child: Html(
+          data: _renderedHtml,
+          style: widget.htmlStyles,
+          shrinkWrap: false,
+          onLinkTap: (url, attributes, element) {
+            // Handle links if needed - for now, do nothing to prevent navigation
+          },
+        ),
       ),
     );
   }

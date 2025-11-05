@@ -162,42 +162,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          buildSettingsCard(
-            context: context,
-            title: 'Developer Options',
-            leadingIcon: Icons.build_circle_outlined,
-            accentColor: Theme.of(context).colorScheme.tertiary,
-            children: [
-              buildListTile(
-                context: context,
-                title: 'Reset Onboarding',
-                subtitle: 'Show onboarding screens on next launch',
-                icon: Icons.refresh,
-                onTap: () {
-                  _settingsService.showResetOnboardingConfirmation(context);
-                },
-              ),
-              buildListTile(
-                context: context,
-                title: 'Reset All Settings',
-                subtitle: 'Restore defaults and theme selections',
-                icon: Icons.restart_alt,
-                onTap: () {
-                  _settingsService.showResetAllSettingsConfirmation(context);
-                },
-              ),
-              buildListTile(
-                context: context,
-                title: 'Reset Permissions',
-                subtitle: 'Re-run platform permission prompts',
-                icon: Icons.security,
-                onTap: () {
-                  _settingsService.showResetPermissionsConfirmation(context);
-                },
-              ),
-            ],
-          ),
         ],
       ),
     );
