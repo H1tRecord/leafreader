@@ -50,7 +50,8 @@ class EpubReaderService with ChangeNotifier {
   String? _activeSearchHighlight;
   final List<_ChapterEntry> _chapterEntries = <_ChapterEntry>[];
   final Map<int, List<_ChapterSection>> _chapterSectionsCache = {};
-  final Map<int, List<_SectionFragment>> _sectionFragmentsCache = {};
+  final Map<_SectionCacheKey, List<_SectionFragment>> _sectionFragmentsCache =
+      {};
 
   // Font settings
   double? _fontSize;
@@ -863,8 +864,9 @@ class EpubReaderService with ChangeNotifier {
       return const [];
     }
 
+    final cacheKey = _SectionCacheKey(entry.rootIndex, section.sectionIndex);
     final fragments = _sectionFragmentsCache.putIfAbsent(
-      section.sectionIndex,
+      cacheKey,
       () => _splitSectionIntoFragments(section),
     );
 
@@ -1271,6 +1273,26 @@ class _SectionFragment {
   final String html;
   final double startRatio;
   final int scrollKey;
+}
+
+class _SectionCacheKey {
+  const _SectionCacheKey(this.rootIndex, this.sectionIndex);
+
+  final int rootIndex;
+  final int sectionIndex;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is _SectionCacheKey &&
+        other.rootIndex == rootIndex &&
+        other.sectionIndex == sectionIndex;
+  }
+
+  @override
+  int get hashCode => Object.hash(rootIndex, sectionIndex);
 }
 
 class _HtmlSegment {

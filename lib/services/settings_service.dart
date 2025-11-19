@@ -535,13 +535,7 @@ class SettingsService {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('Support Email'),
-                  subtitle: const Text('support@leafreader.app'),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.chat_bubble_outline),
-                  title: const Text('Community Channel'),
-                  subtitle: const Text('Join the LeafReader discussion group'),
+                  subtitle: const Text('kjainfotech@gmail.com'),
                 ),
                 const SizedBox(height: 12),
                 Text(

@@ -659,70 +659,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     }
   }
 
-  int _resolveCurrentSectionIndex(List<ChapterSectionViewModel> sections) {
-    if (sections.isEmpty) {
-      return -1;
-    }
-
-    const tolerance = 0.0005;
-    final progress = _currentProgress.clamp(0.0, 1.0) + tolerance;
-
-    for (var i = 0; i < sections.length; i++) {
-      final start = sections[i].startRatio;
-      final end = i + 1 < sections.length
-          ? sections[i + 1].startRatio
-          : 1.0 + tolerance;
-      if (progress >= start && progress < end) {
-        return i;
-      }
-    }
-
-    return sections.length - 1;
-  }
-
-  void _handlePrevious(
-    List<ChapterSectionViewModel> sections,
-    int currentSectionIndex,
-  ) {
-    if (currentSectionIndex > 0 && currentSectionIndex <= sections.length - 1) {
-      final target = sections[currentSectionIndex - 1];
-      widget.service.navigateToSection(
-        widget.chapterIndex,
-        sectionIndex: target.sectionIndex,
-        scrollPosition: target.startRatio,
-      );
-      return;
-    }
-
-    if (widget.chapterIndex <= 0) {
-      return;
-    }
-
-    widget.service.goToChapter(widget.chapterIndex - 1);
-  }
-
-  void _handleNext(
-    List<ChapterSectionViewModel> sections,
-    int currentSectionIndex,
-  ) {
-    if (currentSectionIndex >= 0 && currentSectionIndex < sections.length - 1) {
-      final target = sections[currentSectionIndex + 1];
-      widget.service.navigateToSection(
-        widget.chapterIndex,
-        sectionIndex: target.sectionIndex,
-        scrollPosition: target.startRatio,
-      );
-      return;
-    }
-
-    final totalChapters = widget.service.chapterCount;
-    if (widget.chapterIndex >= totalChapters - 1) {
-      return;
-    }
-
-    widget.service.goToChapter(widget.chapterIndex + 1);
-  }
-
   Map<String, Style> _buildHtmlStyles({
     required Color textColor,
     required Color backgroundColor,
@@ -837,9 +773,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
     }
 
-    final chapterCount = widget.service.chapterCount;
-    final hasPrevious = widget.chapterIndex > 0;
-    final hasNext = chapterCount > 0 && widget.chapterIndex < chapterCount - 1;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textColor = colorScheme.onSurface;
@@ -858,12 +791,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
     final highlightForeground = colorScheme.onTertiaryContainer;
     final sections = widget.service.getRenderedSections(widget.chapterIndex);
     _syncSectionKeys(sections);
-    final currentSectionIndex = _resolveCurrentSectionIndex(sections);
-    final hasPreviousSection = currentSectionIndex > 0;
-    final hasNextSection =
-        currentSectionIndex >= 0 && currentSectionIndex < sections.length - 1;
-    final enablePrevious = hasPreviousSection || hasPrevious;
-    final enableNext = hasNextSection || hasNext;
 
     return Column(
       children: [
@@ -921,35 +848,6 @@ class _EpubChapterViewState extends State<_EpubChapterView> {
                   },
                 );
               },
-            ),
-          ),
-        ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: enablePrevious
-                        ? () => _handlePrevious(sections, currentSectionIndex)
-                        : null,
-                    icon: const Icon(Icons.chevron_left),
-                    label: const Text('Previous'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: enableNext
-                        ? () => _handleNext(sections, currentSectionIndex)
-                        : null,
-                    icon: const Icon(Icons.chevron_right),
-                    label: const Text('Next'),
-                  ),
-                ),
-              ],
             ),
           ),
         ),
