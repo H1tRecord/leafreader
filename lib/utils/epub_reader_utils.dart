@@ -173,79 +173,270 @@ Widget _buildNavigationButtons(
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
 
+  final hasPrevious = service.currentChapterIndex > 0;
+  final hasNext = service.currentChapterIndex < service.chapterCount - 1;
+
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
     decoration: BoxDecoration(
       color: colorScheme.surface,
-      border: Border(
-        top: BorderSide(color: colorScheme.outlineVariant, width: 1.0),
-      ),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Previous Chapter Button
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: service.currentChapterIndex > 0
-                ? () => service.goToChapter(service.currentChapterIndex - 1)
-                : null,
-            icon: const Icon(Icons.chevron_left),
-            label: const Text('Previous Chapter'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.surfaceVariant,
-              foregroundColor: colorScheme.onSurfaceVariant,
-              disabledBackgroundColor: colorScheme.surface,
-              disabledForegroundColor: colorScheme.onSurface.withOpacity(0.38),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Chapter Indicator
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            '${service.currentChapterIndex + 1} / ${service.chapterCount}',
-            style: TextStyle(
-              color: colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Next Chapter Button
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: service.currentChapterIndex < service.chapterCount - 1
-                ? () => service.goToChapter(service.currentChapterIndex + 1)
-                : null,
-            icon: const Icon(Icons.chevron_right),
-            label: const Text('Next Chapter'),
-            iconAlignment: IconAlignment.end,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.surfaceVariant,
-              foregroundColor: colorScheme.onSurfaceVariant,
-              disabledBackgroundColor: colorScheme.surface,
-              disabledForegroundColor: colorScheme.onSurface.withOpacity(0.38),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
+      boxShadow: [
+        BoxShadow(
+          color: colorScheme.shadow.withOpacity(0.08),
+          blurRadius: 8,
+          offset: const Offset(0, -2),
         ),
       ],
     ),
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Row(
+          children: [
+            // Previous Chapter Button
+            Expanded(
+              child: _NavigationButton(
+                onPressed: hasPrevious
+                    ? () => service.goToChapter(service.currentChapterIndex - 1)
+                    : null,
+                icon: Icons.keyboard_arrow_left_rounded,
+                label: 'Previous',
+                isEnabled: hasPrevious,
+                colorScheme: colorScheme,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Enhanced Chapter Indicator
+            Container(
+              constraints: const BoxConstraints(minWidth: 80),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Progress Bar
+                  Container(
+                    height: 3,
+                    width: 60,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(1.5),
+                      color: colorScheme.outline.withOpacity(0.2),
+                    ),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor:
+                          (service.currentChapterIndex + 1) /
+                          service.chapterCount,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(1.5),
+                          gradient: LinearGradient(
+                            colors: [
+                              colorScheme.primary,
+                              colorScheme.primary.withOpacity(0.8),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Chapter Counter
+                  Text(
+                    '${service.currentChapterIndex + 1}',
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                    ),
+                  ),
+                  Text(
+                    'of ${service.chapterCount}',
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                      fontWeight: FontWeight.w400,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+            // Next Chapter Button
+            Expanded(
+              child: _NavigationButton(
+                onPressed: hasNext
+                    ? () => service.goToChapter(service.currentChapterIndex + 1)
+                    : null,
+                icon: Icons.keyboard_arrow_right_rounded,
+                label: 'Next',
+                isEnabled: hasNext,
+                colorScheme: colorScheme,
+                isNext: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
+}
+
+class _NavigationButton extends StatefulWidget {
+  const _NavigationButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.isEnabled,
+    required this.colorScheme,
+    this.isNext = false,
+  });
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+  final bool isEnabled;
+  final ColorScheme colorScheme;
+  final bool isNext;
+
+  @override
+  State<_NavigationButton> createState() => _NavigationButtonState();
+}
+
+class _NavigationButtonState extends State<_NavigationButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    if (widget.isEnabled) {
+      setState(() => _isPressed = true);
+      _animationController.forward();
+    }
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    if (_isPressed) {
+      setState(() => _isPressed = false);
+      _animationController.reverse();
+    }
+  }
+
+  void _onTapCancel() {
+    if (_isPressed) {
+      setState(() => _isPressed = false);
+      _animationController.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: GestureDetector(
+            onTapDown: _onTapDown,
+            onTapUp: _onTapUp,
+            onTapCancel: _onTapCancel,
+            onTap: widget.onPressed,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: widget.isEnabled
+                    ? widget.colorScheme.primaryContainer.withOpacity(
+                        _isPressed ? 0.8 : 0.6,
+                      )
+                    : widget.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: widget.isEnabled
+                      ? widget.colorScheme.primary.withOpacity(0.2)
+                      : widget.colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: widget.isNext
+                    ? [
+                        Expanded(
+                          child: Text(
+                            widget.label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: widget.isEnabled
+                                  ? widget.colorScheme.onPrimaryContainer
+                                  : widget.colorScheme.onSurface.withOpacity(
+                                      0.38,
+                                    ),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          widget.icon,
+                          size: 20,
+                          color: widget.isEnabled
+                              ? widget.colorScheme.onPrimaryContainer
+                              : widget.colorScheme.onSurface.withOpacity(0.38),
+                        ),
+                      ]
+                    : [
+                        Icon(
+                          widget.icon,
+                          size: 20,
+                          color: widget.isEnabled
+                              ? widget.colorScheme.onPrimaryContainer
+                              : widget.colorScheme.onSurface.withOpacity(0.38),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            widget.label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: widget.isEnabled
+                                  ? widget.colorScheme.onPrimaryContainer
+                                  : widget.colorScheme.onSurface.withOpacity(
+                                      0.38,
+                                    ),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 enum _EpubSearchScope { chapter, book }
