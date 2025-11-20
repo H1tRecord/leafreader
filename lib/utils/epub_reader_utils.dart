@@ -147,15 +147,104 @@ Widget buildBody(BuildContext context, EpubReaderService service) {
     );
   }
 
-  return PageView.builder(
-    controller: service.pageController,
-    itemCount: service.chapterCount,
-    itemBuilder: (context, index) {
-      return _EpubChapterView(service: service, chapterIndex: index);
-    },
-    onPageChanged: (index) {
-      service.goToChapter(index);
-    },
+  return Column(
+    children: [
+      Expanded(
+        child: PageView.builder(
+          controller: service.pageController,
+          itemCount: service.chapterCount,
+          itemBuilder: (context, index) {
+            return _EpubChapterView(service: service, chapterIndex: index);
+          },
+          onPageChanged: (index) {
+            service.goToChapter(index);
+          },
+        ),
+      ),
+      _buildNavigationButtons(context, service),
+    ],
+  );
+}
+
+Widget _buildNavigationButtons(
+  BuildContext context,
+  EpubReaderService service,
+) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+    decoration: BoxDecoration(
+      color: colorScheme.surface,
+      border: Border(
+        top: BorderSide(color: colorScheme.outlineVariant, width: 1.0),
+      ),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Previous Chapter Button
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: service.currentChapterIndex > 0
+                ? () => service.goToChapter(service.currentChapterIndex - 1)
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            label: const Text('Previous Chapter'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.surfaceVariant,
+              foregroundColor: colorScheme.onSurfaceVariant,
+              disabledBackgroundColor: colorScheme.surface,
+              disabledForegroundColor: colorScheme.onSurface.withOpacity(0.38),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Chapter Indicator
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            '${service.currentChapterIndex + 1} / ${service.chapterCount}',
+            style: TextStyle(
+              color: colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Next Chapter Button
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: service.currentChapterIndex < service.chapterCount - 1
+                ? () => service.goToChapter(service.currentChapterIndex + 1)
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            label: const Text('Next Chapter'),
+            iconAlignment: IconAlignment.end,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.surfaceVariant,
+              foregroundColor: colorScheme.onSurfaceVariant,
+              disabledBackgroundColor: colorScheme.surface,
+              disabledForegroundColor: colorScheme.onSurface.withOpacity(0.38),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
