@@ -113,7 +113,10 @@ Widget buildBody(BuildContext context, TxtReaderService service) {
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           controller: service.scrollController,
-          child: RichText(text: buildTextSpan(context, service)),
+          child: SelectableText.rich(
+            buildTextSpan(context, service),
+            scrollPhysics: const NeverScrollableScrollPhysics(),
+          ),
         ),
       ),
       if (service.isSearching && service.searchResults.isNotEmpty)
