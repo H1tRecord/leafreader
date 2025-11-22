@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/prefs_helper.dart';
 import '../utils/theme_provider.dart';
@@ -534,67 +533,6 @@ class SettingsService {
     );
   }
 
-  // Launch email app with pre-filled recipient
-  Future<void> _launchEmail(BuildContext context) async {
-    const email = 'kjainfotech@gmail.com';
-    const subject = 'LeafReader App Feedback';
-    final uri = Uri(
-      scheme: 'mailto',
-      path: email,
-      query: 'subject=${Uri.encodeComponent(subject)}',
-    );
-
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        // If email app is not available, show alternative options
-        if (context.mounted) {
-          _showEmailNotAvailableDialog(context, email);
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        _showEmailNotAvailableDialog(context, email);
-      }
-    }
-  }
-
-  // Show dialog when email app is not available
-  void _showEmailNotAvailableDialog(BuildContext context, String email) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Email App Not Available'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Unable to open email app. You can contact us at:'),
-            const SizedBox(height: 12),
-            SelectableText(
-              email,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Copy the email address above and use your preferred email app.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void showHelpAndFeedback(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -633,15 +571,7 @@ class SettingsService {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('Support Email'),
-                  subtitle: const Text('kjainfotech@gmail.com'),
-                  trailing: Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  onTap: () async {
-                    await _launchEmail(context);
-                  },
+                  subtitle: const SelectableText('kjainfotech@gmail.com'),
                 ),
                 const SizedBox(height: 12),
                 Text(
