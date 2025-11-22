@@ -1,49 +1,103 @@
-# leafreader
+# LeafReader
 
-## Abstract
+## About
 
-Lightweight reader app for average casual readers like students who need to open a PDF, EPUB, or plain text without installing multiple apps.
+LeafReader is a lightweight, unified document reader app designed for students and casual readers who need to access PDF, EPUB, and text files without installing multiple apps. Built with Flutter, it provides a seamless reading experience across different document formats in a single application.
 
-## App Project Infographic Blueprint
+## Features
 
-### Project Overview & Background
+### 📚 Multi-Format Support
 
-- **App Name & Logo**: LeafReader (logo: stylized green leaf bookmark).
-- **Problem Statement**: Students and casual readers waste time juggling separate apps for PDFs, EPUBs, and text documents; LeafReader unifies core formats in a single lightweight tool.
+- **PDF Reader**: Full-featured PDF viewing with Syncfusion PDF viewer
+- **EPUB Reader**: Rich EPUB support with customizable reading settings
+- **Text Reader**: Plain text file reading with search and formatting options
+- **File Selection**: Text selection enabled across all formats for easy copying
 
-### Core Objectives
+### 🎨 Customizable Reading Experience
 
-1. Launch documents in under three taps across PDF, EPUB, and TXT formats.
-2. Provide distraction-free reading with adjustable themes and fonts.
-3. Enable seamless file import from local storage and cloud drives.
+- **Theme Support**: Light, Dark, and System theme modes
+- **Font Customization**: Multiple font families (Serif, Sans-serif, Monospace, Times New Roman, Courier New)
+- **Font Size Control**: Adjustable font sizes from 8pt to 32pt
+- **Accent Colors**: Multiple accent color options for personalization
 
-### Key Features
+### 📁 Library Management
 
-- **Universal Library**: One shelf for PDF, EPUB, TXT (screenshot: `Image – homepage with PDF, TXT, and EPUB cards`).
-- **Quick Import**: File picker for local/cloud sources with recent history.
-- **Reader Modes**: Day/Night/Focus modes with font scaling (screenshot: `Image – reader view in night mode`).
-- **Progress Sync**: Auto-save last page and highlights per file (icon: bookmark ribbon).
+- **Folder Selection**: Choose any folder containing your documents
+- **File Organization**: Grid and List view options
+- **Search & Sort**: Search by filename, sort by name, date, or file type
+- **File Operations**: Rename and delete files directly from the app
+- **Multi-Select**: Bulk operations for managing multiple files
 
-### Target Users
+### 🔍 Advanced Reading Features
 
-- **Demographics**: Ages 16–30, students or early-career professionals, urban campuses, basic tech literacy.
-- **Psychographics**: Goal-driven learners who value efficiency, frustrated by app clutter, comfortable with mobile productivity tools.
-- **Persona Snapshot**: "Alex, 19-year-old university student juggling lecture PDFs, EPUB study guides for coursework, and EPUB novels for leisure on an entry-level Android phone."
+- **Search Functionality**: Full-text search within documents (TXT files)
+- **Progress Persistence**: Auto-save reading position across sessions
+- **Reading Settings**: Persistent font and display preferences per format
 
-### Scope and Limitations
+### 📱 Android Integration
 
-- **Scope**: mobile build with onboarding, unified library, document import, multi-format reader, reading progress persistence.
-- **Limitations**: lacks handwritten notes or margin comments (highlight-only markup), does not open DRM-protected or password-locked files, reading progress stored locally with no cross-device sync, file imports limited to local storage, large PDFs (>50 MB) load slowly on low-memory devices.
+- **Intent Handling**: Open files directly from other apps
+- **Storage Permissions**: Proper Android storage access management
+- **Material Design**: Modern UI following Material Design 3 guidelines
 
-### Technical Stack & UI/UX Snapshot
+## Technical Stack
 
-- **Technical Stack**: Flutter, Dart, Syncfusion PDF viewer, open-source EPUB parser, Firebase Analytics.
-- **Visual Mockups**:
-  - `Image – onboarding carousel introducing format support`.
-  - `Image – document import sheet with storage providers`.
+- **Framework**: Flutter 3.8.1+
+- **Language**: Dart
+- **PDF Rendering**: Syncfusion Flutter PDF Viewer
+- **EPUB Processing**: epubx & epub_view packages
+- **State Management**: Provider pattern
+- **Storage**: SharedPreferences for settings persistence
+- **Permissions**: permission_handler for Android storage access
 
-### Design & Delivery Notes
+## Architecture
 
-- Emphasize objectives and features with larger typography and accent colors from the app palette (#2D6A4F green, #95D5B2 mint, #FFFFFF neutral).
-- Maintain left-to-right flow: Problem → Objectives → Features → Users → Scope → Stack.
-- Deliverable: PDF named `Act3-Infographic_Group#` submitted by single group member before Monday presentation.
+The app follows a clean architecture pattern with clear separation of concerns:
+
+- **`/screens`**: UI layer containing all screen widgets (Home, Readers, Settings, Onboarding)
+- **`/services`**: Business logic and state management (HomeService, ReaderServices, etc.)
+- **`/utils`**: Helper functions, UI builders, and shared utilities
+- **Provider Pattern**: Reactive state management throughout the app
+
+## Setup & Installation
+
+1. **Prerequisites**: Flutter SDK 3.8.1 or higher
+2. **Clone Repository**: `git clone [repository-url]`
+3. **Install Dependencies**: `flutter pub get`
+4. **Build APK**: `flutter build apk`
+5. **Install**: Transfer APK to Android device and install
+
+## Supported File Types
+
+| Format | Extension | Features                                   |
+| ------ | --------- | ------------------------------------------ |
+| PDF    | `.pdf`    | Full PDF viewing, zoom, navigation         |
+| EPUB   | `.epub`   | Rich text rendering, chapter navigation    |
+| Text   | `.txt`    | Search, font customization, text selection |
+
+## Permissions
+
+- **Storage Access**: Required to read documents from device storage
+- **File Management**: Optional for advanced file operations
+
+## Development Status
+
+Current Version: 0.1.0
+
+### Completed Features ✅
+
+- Multi-format document reading (PDF, EPUB, TXT)
+- Customizable themes and fonts
+- File management and organization
+- Search functionality
+- Settings persistence
+- Android intent handling
+- Onboarding flow
+
+### Future Enhancements 🚧
+
+- Bookmarks and annotations
+- Cloud storage integration
+- Cross-device sync
+- Additional file format support
+- Reading statistics

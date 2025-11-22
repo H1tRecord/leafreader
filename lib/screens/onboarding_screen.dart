@@ -157,7 +157,7 @@ class OnboardingScreen extends StatelessWidget {
                                   } else {
                                     showLoadingDialog(
                                       context,
-                                      'Requesting storage permissions...',
+                                      'Checking storage permission status...',
                                     );
                                     await service.requestStoragePermissions(
                                       context,

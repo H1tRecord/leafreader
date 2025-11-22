@@ -10,6 +10,7 @@ class PrefsHelper {
   static const String _keyEpubFontFamily = 'epub_font_family';
   static const String _keyTextFontSize = 'text_font_size';
   static const String _keyTextFontFamily = 'text_font_family';
+  static const String _keyDeveloperMode = 'developer_mode';
 
   // Check if onboarding was completed
   static Future<bool> isOnboardingCompleted() async {
@@ -191,6 +192,17 @@ class PrefsHelper {
     final prefs = await SharedPreferences.getInstance();
     final key = 'epub_scroll_${filePath.hashCode}';
     return prefs.getDouble(key);
+  }
+
+  // Developer mode settings
+  static Future<bool> isDeveloperModeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyDeveloperMode) ?? false;
+  }
+
+  static Future<void> setDeveloperMode(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyDeveloperMode, enabled);
   }
 
   // Reset all app settings to defaults (for debugging)

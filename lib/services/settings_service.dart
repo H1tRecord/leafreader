@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/prefs_helper.dart';
 import '../utils/theme_provider.dart';
@@ -16,6 +17,15 @@ class SettingsService {
     'Times New Roman',
     'Courier New',
   ];
+
+  // Developer mode methods
+  Future<bool> isDeveloperModeEnabled() async {
+    return await PrefsHelper.isDeveloperModeEnabled();
+  }
+
+  Future<void> setDeveloperMode(bool enabled) async {
+    await PrefsHelper.setDeveloperMode(enabled);
+  }
 
   String _ensureValidFontSelection(String value) {
     return _sharedFontOptions.contains(value) ? value : 'Default';
@@ -57,15 +67,54 @@ class SettingsService {
     );
   }
 
+  // Show developer mode toggle dialog
+  void showDeveloperModeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enable Developer Mode?'),
+        content: const Text(
+          'Developer mode provides access to debug options and experimental features. '
+          'These options are intended for testing and development purposes only and may '
+          'cause unexpected behavior or data loss.\n\n'
+          'Only enable this if you know what you are doing.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await setDeveloperMode(true);
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+
+              // Show confirmation
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Developer mode enabled'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Show confirmation dialog before resetting onboarding
   void showResetOnboardingConfirmation(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Onboarding?'),
+        title: const Text('⚠️ Debug: Reset Onboarding'),
         content: const Text(
           'This will reset the onboarding process. The next time you launch the app, '
-          'you will see the onboarding screens again. This is meant for debugging purposes only.',
+          'you will see the onboarding screens again.\n\n'
+          '⚠️ This is a debug feature and may cause unexpected behavior.',
         ),
         actions: [
           TextButton(
@@ -112,11 +161,11 @@ class SettingsService {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset All Settings?'),
+        title: const Text('⚠️ Debug: Reset All Settings'),
         content: const Text(
           'This will reset all app settings to their default values. '
-          'The next time you launch the app, you will see the onboarding screens again. '
-          'This action cannot be undone.',
+          'The next time you launch the app, you will see the onboarding screens again.\n\n'
+          '⚠️ This action cannot be undone and may cause data loss.',
         ),
         actions: [
           TextButton(
@@ -449,10 +498,11 @@ class SettingsService {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Permissions?'),
+        title: const Text('⚠️ Debug: Reset Permissions'),
         content: const Text(
-          'This will reset all app permissions. You\'ll need to grant permissions again '
-          'the next time they\'re required. This is useful if you\'re experiencing permission issues.',
+          'This will open the app settings where you can manually reset permissions. '
+          'You\'ll need to grant permissions again the next time they\'re required.\n\n'
+          '⚠️ This is a debug feature for troubleshooting permission issues.',
         ),
         actions: [
           TextButton(
@@ -491,6 +541,67 @@ class SettingsService {
               );
             },
             child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Launch email app with pre-filled recipient
+  Future<void> _launchEmail(BuildContext context) async {
+    const email = 'kjainfotech@gmail.com';
+    const subject = 'LeafReader App Feedback';
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      query: 'subject=${Uri.encodeComponent(subject)}',
+    );
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        // If email app is not available, show alternative options
+        if (context.mounted) {
+          _showEmailNotAvailableDialog(context, email);
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showEmailNotAvailableDialog(context, email);
+      }
+    }
+  }
+
+  // Show dialog when email app is not available
+  void _showEmailNotAvailableDialog(BuildContext context, String email) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Email App Not Available'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Unable to open email app. You can contact us at:'),
+            const SizedBox(height: 12),
+            SelectableText(
+              email,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Copy the email address above and use your preferred email app.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -536,6 +647,14 @@ class SettingsService {
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('Support Email'),
                   subtitle: const Text('kjainfotech@gmail.com'),
+                  trailing: Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onTap: () async {
+                    await _launchEmail(context);
+                  },
                 ),
                 const SizedBox(height: 12),
                 Text(

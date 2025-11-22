@@ -108,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               buildStaticInfoTile(
                 context: context,
                 title: 'LeafReader',
-                subtitle: 'Version 0.1.0',
+                subtitle: 'Version 2.1.1',
                 icon: Icons.apps,
               ),
               const Divider(height: 24),
@@ -161,6 +161,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ],
+          ),
+          // Developer/Debug Options - only show if developer mode is enabled
+          FutureBuilder<bool>(
+            future: _settingsService.isDeveloperModeEnabled(),
+            builder: (context, snapshot) {
+              final isDeveloperMode = snapshot.data ?? false;
+
+              if (isDeveloperMode) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: buildSettingsCard(
+                    context: context,
+                    title: 'Debug Options',
+                    leadingIcon: Icons.bug_report,
+                    accentColor: Colors.orange,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.warning,
+                              color: Colors.orange,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Developer mode is enabled. These options are for testing purposes only.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.orange[800]),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Developer Mode',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          Switch(
+                            value: true,
+                            onChanged: (value) async {
+                              await _settingsService.setDeveloperMode(false);
+                              if (mounted) setState(() {});
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Developer mode disabled'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            activeColor: Colors.orange,
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      buildListTile(
+                        context: context,
+                        title: 'Reset Onboarding',
+                        subtitle: 'Show onboarding screens on next launch',
+                        icon: Icons.refresh,
+                        onTap: () {
+                          _settingsService.showResetOnboardingConfirmation(
+                            context,
+                          );
+                        },
+                      ),
+                      buildListTile(
+                        context: context,
+                        title: 'Reset All Settings',
+                        subtitle: 'Reset app to factory defaults',
+                        icon: Icons.settings_backup_restore,
+                        onTap: () {
+                          _settingsService.showResetAllSettingsConfirmation(
+                            context,
+                          );
+                        },
+                      ),
+                      buildListTile(
+                        context: context,
+                        title: 'Reset Permissions',
+                        subtitle: 'Open app settings to reset permissions',
+                        icon: Icons.security,
+                        onTap: () {
+                          _settingsService.showResetPermissionsConfirmation(
+                            context,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: buildSettingsCard(
+                    context: context,
+                    title: 'Developer Options',
+                    leadingIcon: Icons.developer_mode,
+                    children: [
+                      buildListTile(
+                        context: context,
+                        title: 'Enable Developer Mode',
+                        subtitle:
+                            'Access debug options and experimental features',
+                        icon: Icons.bug_report,
+                        onTap: () async {
+                          _settingsService.showDeveloperModeDialog(context);
+                          // Refresh the screen after dialog closes
+                          await Future.delayed(
+                            const Duration(milliseconds: 500),
+                          );
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
           ),
         ],
       ),

@@ -189,94 +189,125 @@ Widget _buildNavigationButtons(
     ),
     child: SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Row(
-          children: [
-            // Previous Chapter Button
-            Expanded(
-              child: _NavigationButton(
-                onPressed: hasPrevious
-                    ? () => service.goToChapter(service.currentChapterIndex - 1)
-                    : null,
-                icon: Icons.keyboard_arrow_left_rounded,
-                label: 'Previous',
-                isEnabled: hasPrevious,
-                colorScheme: colorScheme,
-              ),
-            ),
-            const SizedBox(width: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 380;
+          final horizontalPadding = isCompact ? 12.0 : 20.0;
+          final verticalPadding = isCompact ? 10.0 : 16.0;
+          final gap = isCompact ? 8.0 : 12.0;
+          final indicatorWidth = isCompact ? 48.0 : 60.0;
+          final indicatorMinWidth = isCompact ? 64.0 : 80.0;
+          final chapterNumberSize = isCompact ? 16.0 : 18.0;
+          final chapterLabelSize = isCompact ? 11.0 : 12.0;
+          final buttonPadding = EdgeInsets.symmetric(
+            vertical: isCompact ? 10.0 : 12.0,
+            horizontal: isCompact ? 12.0 : 16.0,
+          );
+          final labelFontSize = isCompact ? 13.0 : 14.0;
+          final iconSize = isCompact ? 18.0 : 20.0;
 
-            // Enhanced Chapter Indicator
-            Container(
-              constraints: const BoxConstraints(minWidth: 80),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Progress Bar
-                  Container(
-                    height: 3,
-                    width: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(1.5),
-                      color: colorScheme.outline.withOpacity(0.2),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor:
-                          (service.currentChapterIndex + 1) /
-                          service.chapterCount,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(1.5),
-                          gradient: LinearGradient(
-                            colors: [
-                              colorScheme.primary,
-                              colorScheme.primary.withOpacity(0.8),
-                            ],
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              verticalPadding,
+              horizontalPadding,
+              verticalPadding,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: _NavigationButton(
+                    onPressed: hasPrevious
+                        ? () => service.goToChapter(
+                            service.currentChapterIndex - 1,
+                          )
+                        : null,
+                    icon: Icons.keyboard_arrow_left_rounded,
+                    label: 'Previous',
+                    isEnabled: hasPrevious,
+                    colorScheme: colorScheme,
+                    padding: buttonPadding,
+                    labelFontSize: labelFontSize,
+                    iconSize: iconSize,
+                  ),
+                ),
+                SizedBox(width: gap),
+                Flexible(
+                  flex: 0,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: indicatorMinWidth),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          height: 3,
+                          width: indicatorWidth,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(1.5),
+                            color: colorScheme.outline.withOpacity(0.2),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor:
+                                (service.currentChapterIndex + 1) /
+                                service.chapterCount,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(1.5),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    colorScheme.primary,
+                                    colorScheme.primary.withOpacity(0.8),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        SizedBox(height: isCompact ? 6.0 : 8.0),
+                        Text(
+                          '${service.currentChapterIndex + 1}',
+                          style: TextStyle(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: chapterNumberSize,
+                          ),
+                        ),
+                        Text(
+                          'of ${service.chapterCount}',
+                          style: TextStyle(
+                            color: colorScheme.onSurface.withOpacity(0.7),
+                            fontWeight: FontWeight.w400,
+                            fontSize: chapterLabelSize,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  // Chapter Counter
-                  Text(
-                    '${service.currentChapterIndex + 1}',
-                    style: TextStyle(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 18,
-                    ),
+                ),
+                SizedBox(width: gap),
+                Expanded(
+                  child: _NavigationButton(
+                    onPressed: hasNext
+                        ? () => service.goToChapter(
+                            service.currentChapterIndex + 1,
+                          )
+                        : null,
+                    icon: Icons.keyboard_arrow_right_rounded,
+                    label: 'Next',
+                    isEnabled: hasNext,
+                    colorScheme: colorScheme,
+                    isNext: true,
+                    padding: buttonPadding,
+                    labelFontSize: labelFontSize,
+                    iconSize: iconSize,
                   ),
-                  Text(
-                    'of ${service.chapterCount}',
-                    style: TextStyle(
-                      color: colorScheme.onSurface.withOpacity(0.7),
-                      fontWeight: FontWeight.w400,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-
-            const SizedBox(width: 12),
-            // Next Chapter Button
-            Expanded(
-              child: _NavigationButton(
-                onPressed: hasNext
-                    ? () => service.goToChapter(service.currentChapterIndex + 1)
-                    : null,
-                icon: Icons.keyboard_arrow_right_rounded,
-                label: 'Next',
-                isEnabled: hasNext,
-                colorScheme: colorScheme,
-                isNext: true,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     ),
   );
@@ -290,6 +321,9 @@ class _NavigationButton extends StatefulWidget {
     required this.isEnabled,
     required this.colorScheme,
     this.isNext = false,
+    this.padding = const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    this.iconSize = 20,
+    this.labelFontSize = 14,
   });
 
   final VoidCallback? onPressed;
@@ -298,6 +332,9 @@ class _NavigationButton extends StatefulWidget {
   final bool isEnabled;
   final ColorScheme colorScheme;
   final bool isNext;
+  final EdgeInsetsGeometry padding;
+  final double iconSize;
+  final double labelFontSize;
 
   @override
   State<_NavigationButton> createState() => _NavigationButtonState();
@@ -362,7 +399,7 @@ class _NavigationButtonState extends State<_NavigationButton>
             onTap: widget.onPressed,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              padding: widget.padding,
               decoration: BoxDecoration(
                 color: widget.isEnabled
                     ? widget.colorScheme.primaryContainer.withOpacity(
@@ -379,6 +416,7 @@ class _NavigationButtonState extends State<_NavigationButton>
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: widget.isNext
                     ? [
                         Expanded(
@@ -392,14 +430,14 @@ class _NavigationButtonState extends State<_NavigationButton>
                                       0.38,
                                     ),
                               fontWeight: FontWeight.w500,
-                              fontSize: 14,
+                              fontSize: widget.labelFontSize,
                             ),
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
                           widget.icon,
-                          size: 20,
+                          size: widget.iconSize,
                           color: widget.isEnabled
                               ? widget.colorScheme.onPrimaryContainer
                               : widget.colorScheme.onSurface.withOpacity(0.38),
@@ -408,7 +446,7 @@ class _NavigationButtonState extends State<_NavigationButton>
                     : [
                         Icon(
                           widget.icon,
-                          size: 20,
+                          size: widget.iconSize,
                           color: widget.isEnabled
                               ? widget.colorScheme.onPrimaryContainer
                               : widget.colorScheme.onSurface.withOpacity(0.38),
@@ -425,7 +463,7 @@ class _NavigationButtonState extends State<_NavigationButton>
                                       0.38,
                                     ),
                               fontWeight: FontWeight.w500,
-                              fontSize: 14,
+                              fontSize: widget.labelFontSize,
                             ),
                           ),
                         ),
