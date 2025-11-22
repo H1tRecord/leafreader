@@ -139,119 +139,157 @@ class OnboardingScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        SizedBox(
-                          width: 120,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              HapticFeedback.lightImpact();
-                              switch (service.currentStep) {
-                                case OnboardingStep.welcome:
-                                  service.nextStep();
-                                  break;
-                                case OnboardingStep.permissions:
-                                  final status = await service
-                                      .checkStoragePermission();
-                                  if (status.isGranted) {
-                                    service.nextStep();
-                                  } else {
-                                    showLoadingDialog(
-                                      context,
-                                      'Requesting storage permission...',
-                                    );
-                                    await service.requestStoragePermissions(
-                                      context,
-                                      showDialogs: true,
-                                    );
-                                    if (context.mounted &&
-                                        Navigator.of(context).canPop()) {
-                                      Navigator.of(context).pop();
-                                    }
-                                    final newStatus = await service
-                                        .checkStoragePermission();
-                                    if (newStatus.isGranted) {
-                                      service.nextStep();
-                                    } else {
-                                      // Show message that permission is required
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Storage permission is required to continue. Please grant permission to proceed.',
-                                            ),
-                                            duration: Duration(seconds: 3),
+                        service.currentStep == OnboardingStep.permissions
+                            ? FutureBuilder<PermissionStatus>(
+                                future: service.checkStoragePermission(),
+                                builder: (context, snapshot) {
+                                  final isPermissionGranted =
+                                      snapshot.data == PermissionStatus.granted;
+                                  return SizedBox(
+                                    width: 120,
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: isPermissionGranted
+                                          ? () {
+                                              HapticFeedback.lightImpact();
+                                              service.nextStep();
+                                            }
+                                          : null, // Disabled when permission not granted
+                                      style: ElevatedButton.styleFrom(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
-                                        );
-                                      }
-                                    }
-                                  }
-                                  break;
-                                case OnboardingStep.folderSelection:
-                                  if (service.selectedFolderPath != null) {
-                                    service.nextStep();
-                                  } else {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('No Folder Selected'),
-                                        content: const Text(
-                                          'Please select a folder to continue, or skip this step to choose a folder later.',
                                         ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(),
-                                            child: const Text('OK'),
+                                        elevation: 1,
+                                        backgroundColor: isPermissionGranted
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primary
+                                            : Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                        foregroundColor: isPermissionGranted
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            isPermissionGranted
+                                                ? 'Continue'
+                                                : 'Grant Permission',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            isPermissionGranted
+                                                ? Icons.arrow_forward
+                                                : Icons.block,
+                                            size: 18,
                                           ),
                                         ],
                                       ),
-                                    );
-                                  }
-                                  break;
-                                case OnboardingStep.themeSelection:
-                                  service.nextStep();
-                                  break;
-                                case OnboardingStep.tutorial:
-                                  service.completeOnboarding(context);
-                                  break;
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 1,
-                              backgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
-                              foregroundColor: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  service.getButtonText(),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
+                              )
+                            : SizedBox(
+                                width: 120,
+                                height: 56,
+                                child: ElevatedButton(
+                                  onPressed: () async {
+                                    HapticFeedback.lightImpact();
+                                    switch (service.currentStep) {
+                                      case OnboardingStep.welcome:
+                                        service.nextStep();
+                                        break;
+                                      case OnboardingStep.permissions:
+                                        // This case is now handled above
+                                        break;
+                                      case OnboardingStep.folderSelection:
+                                        if (service.selectedFolderPath !=
+                                            null) {
+                                          service.nextStep();
+                                        } else {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text(
+                                                'No Folder Selected',
+                                              ),
+                                              content: const Text(
+                                                'Please select a folder to continue, or skip this step to choose a folder later.',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(
+                                                    context,
+                                                  ).pop(),
+                                                  child: const Text('OK'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                        break;
+                                      case OnboardingStep.themeSelection:
+                                        service.nextStep();
+                                        break;
+                                      case OnboardingStep.tutorial:
+                                        service.completeOnboarding(context);
+                                        break;
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 1,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                    foregroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        service.getButtonText(),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        service.currentStep ==
+                                                OnboardingStep.tutorial
+                                            ? Icons.check
+                                            : Icons.arrow_forward,
+                                        size: 18,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  service.currentStep == OnboardingStep.tutorial
-                                      ? Icons.check
-                                      : Icons.arrow_forward,
-                                  size: 18,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                              ),
                       ],
                     ),
                   ),
