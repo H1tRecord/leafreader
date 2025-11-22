@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -346,6 +345,27 @@ class SettingsService {
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            setModalState(() {
+                              epubFontSize = 16.0;
+                              epubFontFamily = 'Default';
+                            });
+                            PrefsHelper.saveEpubFontSize(16.0);
+                            PrefsHelper.saveEpubFontFamily('Default');
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reset to Defaults'),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -483,6 +503,27 @@ class SettingsService {
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            setModalState(() {
+                              textFontSize = 16.0;
+                              textFontFamily = 'Default';
+                            });
+                            PrefsHelper.saveTextFontSize(16.0);
+                            PrefsHelper.saveTextFontFamily('Default');
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reset to Defaults'),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -490,60 +531,6 @@ class SettingsService {
           },
         );
       },
-    );
-  }
-
-  // Show confirmation dialog before resetting permissions
-  void showResetPermissionsConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('⚠️ Debug: Reset Permissions'),
-        content: const Text(
-          'This will open the app settings where you can manually reset permissions. '
-          'You\'ll need to grant permissions again the next time they\'re required.\n\n'
-          '⚠️ This is a debug feature for troubleshooting permission issues.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Open app settings to let user manually reset permissions
-              await openAppSettings();
-
-              // Close the dialog
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-
-              // Show confirmation dialog with instructions
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Reset Permissions'),
-                  content: const Text(
-                    'The app settings page has been opened. To reset permissions:\n\n'
-                    '1. Find LeafReader in the list\n'
-                    '2. Tap on Permissions\n'
-                    '3. Disable and re-enable storage permissions',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                ),
-              );
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
     );
   }
 

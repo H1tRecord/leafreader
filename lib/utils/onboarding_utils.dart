@@ -194,10 +194,12 @@ Widget buildPermissionsStep(BuildContext context, OnboardingService service) {
               const SizedBox(height: 32),
               if (!isPermissionGranted)
                 ElevatedButton.icon(
-                  onPressed: () => service.requestStoragePermissions(
-                    context,
-                    showDialogs: false,
-                  ),
+                  onPressed: () async {
+                    await service.requestStoragePermissions(
+                      context,
+                      showDialogs: false,
+                    );
+                  },
                   icon: const Icon(Icons.perm_media),
                   label: const Text('Grant Storage Permission'),
                   style: ElevatedButton.styleFrom(

@@ -254,17 +254,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           );
                         },
                       ),
-                      buildListTile(
-                        context: context,
-                        title: 'Reset Permissions',
-                        subtitle: 'Open app settings to reset permissions',
-                        icon: Icons.security,
-                        onTap: () {
-                          _settingsService.showResetPermissionsConfirmation(
-                            context,
-                          );
-                        },
-                      ),
                     ],
                   ),
                 );

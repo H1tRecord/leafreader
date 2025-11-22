@@ -45,11 +45,11 @@ class OnboardingScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (service.currentStep != OnboardingStep.tutorial)
+                        if (service.canSkipCurrentStep())
                           TextButton(
-                            onPressed: () => service.skipOnboarding(context),
+                            onPressed: () => service.skipCurrentStep(context),
                             child: Text(
-                              'Skip',
+                              service.getSkipButtonText(),
                               style: TextStyle(
                                 color: Theme.of(context).colorScheme.primary,
                               ),
@@ -157,7 +157,7 @@ class OnboardingScreen extends StatelessWidget {
                                   } else {
                                     showLoadingDialog(
                                       context,
-                                      'Checking storage permission status...',
+                                      'Requesting storage permission...',
                                     );
                                     await service.requestStoragePermissions(
                                       context,
@@ -171,6 +171,20 @@ class OnboardingScreen extends StatelessWidget {
                                         .checkStoragePermission();
                                     if (newStatus.isGranted) {
                                       service.nextStep();
+                                    } else {
+                                      // Show message that permission is required
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Storage permission is required to continue. Please grant permission to proceed.',
+                                            ),
+                                            duration: Duration(seconds: 3),
+                                          ),
+                                        );
+                                      }
                                     }
                                   }
                                   break;
@@ -183,7 +197,7 @@ class OnboardingScreen extends StatelessWidget {
                                       builder: (context) => AlertDialog(
                                         title: const Text('No Folder Selected'),
                                         content: const Text(
-                                          'Please select a folder to continue.',
+                                          'Please select a folder to continue, or skip this step to choose a folder later.',
                                         ),
                                         actions: [
                                           TextButton(

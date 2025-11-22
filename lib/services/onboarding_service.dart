@@ -72,12 +72,61 @@ class OnboardingService with ChangeNotifier {
     }
   }
 
-  Future<void> skipOnboarding(BuildContext context) async {
-    await PrefsHelper.setOnboardingCompleted();
-    await PrefsHelper.saveSelectedTheme('System');
-    await PrefsHelper.saveAccentColor('Green');
-    if (context.mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
+  bool canSkipCurrentStep() {
+    switch (_currentStep) {
+      case OnboardingStep.welcome:
+        return false; // Cannot skip welcome
+      case OnboardingStep.permissions:
+        return false; // Cannot skip permissions - required
+      case OnboardingStep.folderSelection:
+        return true; // Can skip folder selection
+      case OnboardingStep.themeSelection:
+        return true; // Can skip theme selection
+      case OnboardingStep.tutorial:
+        return false; // Cannot skip tutorial (it's the end)
+    }
+  }
+
+  String getSkipButtonText() {
+    switch (_currentStep) {
+      case OnboardingStep.folderSelection:
+        return 'Skip for now';
+      case OnboardingStep.themeSelection:
+        return 'Use defaults';
+      default:
+        return 'Skip';
+    }
+  }
+
+  Future<void> skipCurrentStep(BuildContext context) async {
+    switch (_currentStep) {
+      case OnboardingStep.folderSelection:
+        // Skip folder selection - proceed without selecting a folder
+        nextStep();
+        break;
+      case OnboardingStep.themeSelection:
+        // Skip theme selection - use defaults
+        _selectedThemeMode = 'System';
+        _selectedAccentColor = 'Green';
+        nextStep();
+        break;
+      default:
+        // For other steps, just proceed
+        nextStep();
+        break;
+    }
+  }
+
+  Future<bool> canProceedToNextStep() async {
+    switch (_currentStep) {
+      case OnboardingStep.permissions:
+        final status = await checkStoragePermission();
+        return status.isGranted;
+      case OnboardingStep.folderSelection:
+        // Can proceed even without folder selection
+        return true;
+      default:
+        return true;
     }
   }
 
