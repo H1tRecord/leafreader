@@ -55,6 +55,25 @@ PreferredSizeWidget buildAppBar(
         style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
       ),
       actions: [
+        if (service.searchResults.isNotEmpty) ...[
+          Text(
+            '${service.currentSearchIndex + 1}/${service.searchResults.length}',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 12,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_up),
+            tooltip: 'Previous result',
+            onPressed: () => service.previousSearchResult(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down),
+            tooltip: 'Next result',
+            onPressed: () => service.nextSearchResult(),
+          ),
+        ],
         if (service.searchController.text.isNotEmpty)
           IconButton(
             icon: const Icon(Icons.clear),
@@ -107,21 +126,15 @@ Widget buildBody(BuildContext context, TxtReaderService service) {
     );
   }
 
-  return Stack(
-    children: [
-      Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          controller: service.scrollController,
-          child: SelectableText.rich(
-            buildTextSpan(context, service),
-            scrollPhysics: const NeverScrollableScrollPhysics(),
-          ),
-        ),
+  return Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: SingleChildScrollView(
+      controller: service.scrollController,
+      child: SelectableText.rich(
+        buildTextSpan(context, service),
+        scrollPhysics: const NeverScrollableScrollPhysics(),
       ),
-      if (service.isSearching && service.searchResults.isNotEmpty)
-        buildSearchNavigationPanel(context, service),
-    ],
+    ),
   );
 }
 
@@ -369,54 +382,6 @@ void showReaderSettingsDialog(BuildContext context, TxtReaderService service) {
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-  );
-}
-
-Widget buildSearchNavigationPanel(
-  BuildContext context,
-  TxtReaderService service,
-) {
-  return Positioned(
-    bottom: 0,
-    left: 0,
-    right: 0,
-    child: Material(
-      elevation: 4,
-      child: Container(
-        color: Theme.of(context).colorScheme.surface,
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Result ${service.currentSearchIndex + 1} of ${service.searchResults.length}',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_up),
-                    tooltip: 'Previous result',
-                    onPressed: () => service.previousSearchResult(),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down),
-                    tooltip: 'Next result',
-                    onPressed: () => service.nextSearchResult(),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
     ),
   );
 }
